@@ -1,0 +1,227 @@
+
+substitutions:
+  name:  xy-clock-blue
+  friendly_name: XY-Clock-Blue
+  down_button_pin: GPIO9
+  up_button_pin: GPIO10 
+  set_button_pin: GPIO16
+  scl_pin: GPIO12 
+  sda_pin: GPIO13
+  red_led_pin: GPIO2
+  blue_led_pin: GPIO0
+  buzzer_pin: GPIO5
+  key_pin: GPIO14 #	Contact “KEY”
+  waiting: "ehSC" # shows when waiting for time
+
+# What started my curiousity: https://github.com/arendst/Tasmota/discussions/15788
+# Tasmota Template: https://templates.blakadder.com/XY-Clock.html
+# About the Rtttl Buzzer: https://esphome.io/components/rtttl.html
+# External component (required): https://github.com/buzzer13/esphome-components
+# About outputting to the Display: https://esphome.io/components/display/tm1637.html?highlight=tm1637
+# What characters can be displayed: https://esphome.io/components/display/max7219.html#display-max7219-characters
+# ESPHome's Display: https://esphome.io/components/display/index.html
+# Will add message "cards" at some point https://esphome.io/components/display/tm1637.html
+
+esphome:
+  name: $name
+  comment: "EHSClock from Trip5"
+  on_boot:
+    then:
+      - ds1307.read_time
+
+esp8266:
+  board: esp8285
+  restore_from_flash: True
+  
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid
+    password: !secret wifi_password
+  ap:
+    ssid: "$name Hotspot"
+    password: !secret ap_password
+
+api:
+  services:
+    - service: tune
+      variables:
+        tune: string
+      then:
+        - rtttl.play:
+            rtttl: !lambda 'return tune;'
+
+mdns:
+  disabled: false
+
+logger:
+
+ota:
+  password: !secret ota_password
+
+web_server:
+  port: 80
+  ota: true
+  include_internal: true
+
+captive_portal:
+
+text_sensor:
+  - platform: version
+    name: "Version"
+    hide_timestamp: true
+    internal: true
+
+status_led:
+  pin:
+    number: $red_led_pin
+    inverted: true
+
+button:
+  - platform: restart
+    id: "Restart"
+    internal: true
+
+external_components:
+#  - source:
+#      type: local
+#      path: my-components/EHCL-Clock # e.g. /config/esphome/components
+#    components: [ tm1650 ]
+  - source:
+      type: git
+      url: https://github.com/trip5/esphome-tm1650
+      ref: main
+    refresh: 60s
+    components: [ tm1650 ]
+
+time:
+# one platform must contain id: my_time
+  - platform: homeassistant
+    timezone: "Asia/Seoul" # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    update_interval: 8h
+    on_time_sync:
+      then:
+        ds1307.write_time:
+  - platform: ds1307
+    id: my_time
+    update_interval: never
+
+i2c:
+  sda: $sda_pin
+  scl: $scl_pin
+  scan: true
+  id: i2cbus
+  
+binary_sensor:
+  - platform: status
+    name: "$friendly_name Status"
+  - platform: gpio
+    pin:
+      number: $up_button_pin
+      inverted: true
+      mode: INPUT_PULLUP
+    name: "$friendly_name Up button"
+  - platform: gpio
+    pin:
+      number: $down_button_pin
+      inverted: true
+      mode: INPUT_PULLUP
+    name: "$friendly_name Down button"
+  - platform: gpio
+    pin: 
+      number: $set_button_pin
+      inverted: true
+    name: "$friendly_name Set button"
+
+output:
+  - platform: esp8266_pwm
+    pin: $buzzer_pin
+    id: rtttl_out
+
+rtttl:
+  output: rtttl_out
+
+display:
+  - platform: tm1650
+    id: disp_tm1650
+    i2c_id: i2cbus
+    # intensity: 1
+    length: 4
+    segment_map: PGFEDCBA # Specific to the Sinilink XY-Clock, other clocks will use other mapping
+    # segment_map: PABCDEFG # normal tm1650
+    # segment_map: GBPEDCAF # Specific to 303WIFILC01
+    update_interval: 1s # change this to 500ms if you prefer the colon to blink faster
+    # %H%M for 24 hours, %l%M for 12 hours
+    # the tm1650 requires periods after the 3rd and 4th digits to activate the colon so some magic happens to make the colon blink
+    lambda: |-
+      if (id(my_time).now().is_valid()) {
+        if (id(hour_mode) == 12) {
+          if (id(my_time).now().hour > 11) {
+            it.strftime("%l.", id(my_time).now());
+          } else {
+            it.strftime("%l", id(my_time).now());
+          }
+        } else {
+          it.strftime("%H", id(my_time).now());
+        }
+        static int blinking = 0;
+        auto time_text = id(my_time).now().strftime("%M");
+        std::string min_a = (time_text.substr(0,1).c_str());
+        std::string min_b = (time_text.substr(1,1).c_str());
+        if (++blinking & 1) {
+          min_a.append(".");
+          min_b.append(".");
+        }
+        it.print(2, min_a.c_str());
+        it.print(3, min_b.c_str());
+      } else {
+        it.print("$waiting");
+      }
+      id(disp_tm1650)->set_intensity(id(brightness_level));
+
+globals:
+   - id: brightness_level
+     type: int
+     restore_value: true
+     initial_value: '1'
+   - id: hour_mode
+     type: int
+     restore_value: true
+     initial_value: '12'
+
+select:
+  - platform: template
+    name: "$friendly_name Brightness"
+    restore_value: true
+    optimistic: true
+    options:
+      - '0'
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+      - '5'
+      - '6'
+      - '7'
+      - '8'
+    initial_option: '1'
+    on_value:
+      then:
+        lambda: |-
+          id(brightness_level) = atoi(x.c_str());
+          ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+  - platform: template
+    name: "$friendly_name Hour Mode"
+    restore_value: true
+    optimistic: true
+    options:
+      - '12'
+      - '24'
+    initial_option: '12'
+    on_value:
+      then:
+        lambda: |-
+          id(hour_mode) = atoi(x.c_str());
+          ESP_LOGD("main", "Hour Mode: %d", id(hour_mode));
+
+preferences:
+  flash_write_interval: 10s # 0 does immediate write to memory with no mem buffer (not recommended)
