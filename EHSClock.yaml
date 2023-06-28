@@ -1,4 +1,3 @@
-
 substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
@@ -20,7 +19,6 @@ substitutions:
 # About outputting to the Display: https://esphome.io/components/display/tm1637.html?highlight=tm1637
 # What characters can be displayed: https://esphome.io/components/display/max7219.html#display-max7219-characters
 # ESPHome's Display: https://esphome.io/components/display/index.html
-# Will add message "cards" at some point https://esphome.io/components/display/tm1637.html
 
 esphome:
   name: $name
@@ -49,6 +47,34 @@ api:
       then:
         - rtttl.play:
             rtttl: !lambda 'return tune;'
+    - service: message
+      variables:
+        message: string
+        message_alive_time: int
+        message_display_time: int
+        message_clock_time: int
+      then:
+        - globals.set:
+            id: message
+            value: !lambda 'return message;'
+        - globals.set:
+            id: message_alive_time
+            value: !lambda 'return message_alive_time;'
+        - globals.set:
+            id: message_display_time
+            value: !lambda 'return message_display_time;'
+        - globals.set:
+            id: message_clock_time
+            value: !lambda 'return message_clock_time;'
+        - globals.set:
+            id: message_clock_time_count
+            value: !lambda 'return message_clock_time;'
+        - logger.log:
+            format: "Message: %s"
+            args: [ 'message.c_str()' ]
+        - logger.log:
+            format: "Alive Time: %i / Display Time: %i / Clock Time: %i"
+            args: [ 'message_alive_time', 'message_display_time' , 'message_clock_time' ]
 
 mdns:
   disabled: false
@@ -82,6 +108,9 @@ button:
     internal: true
 
 external_components:
+#  - source: github://buzzer13/esphome-components@main
+#    components:
+#      - tm1650
 #  - source:
 #      type: local
 #      path: my-components/EHCL-Clock # e.g. /config/esphome/components
@@ -149,30 +178,51 @@ display:
     segment_map: PGFEDCBA # Specific to the Sinilink XY-Clock, other clocks will use other mapping
     # segment_map: PABCDEFG # normal tm1650
     # segment_map: GBPEDCAF # Specific to 303WIFILC01
-    update_interval: 1s # change this to 500ms if you prefer the colon to blink faster
+    update_interval: 1s # change this to 500ms if you prefer the colon to blink faster (Warning that all interval times are now halved)
     # %H%M for 24 hours, %l%M for 12 hours
-    # the tm1650 requires periods after the 3rd and 4th digits to activate the colon so some magic happens to make the colon blink
     lambda: |-
+      // Display the message if all conditions are met
       if (id(my_time).now().is_valid()) {
-        if (id(hour_mode) == 12) {
-          if (id(my_time).now().hour > 11) {
-            it.strftime("%l.", id(my_time).now());
-          } else {
-            it.strftime("%l", id(my_time).now());
+        if ((id(message_alive_time) != 0) && (id(message_clock_time_count) >= id(message_clock_time))) {
+          id(message_display_time_count) += 1;
+          id(message_alive_time_count) += 1;
+          auto message_text = id(message);
+          it.print(0, message_text.c_str());
+          if (id(message_display_time_count) >= id(message_display_time)) {
+            id(message_display_time_count) = 0;
+            id(message_clock_time_count) = 0;
+            if (id(message_alive_time_count) >= id(message_alive_time)) {
+              id(message_alive_time_count) = 0;
+              id(message_alive_time) = 0;
+              ESP_LOGD("main", "Message Alive Time finished.");
+            }
           }
         } else {
-          it.strftime("%H", id(my_time).now());
+          if ((id(message_alive_time) != 0) && (id(message_clock_time) != 0)) {
+            id(message_clock_time_count) += 1;
+            id(message_alive_time_count) += 1;
+          }
+          if (id(hour_mode) == 12) {
+            if (id(my_time).now().hour > 11) {
+              it.strftime("%l.", id(my_time).now());
+            } else {
+              it.strftime("%l", id(my_time).now());
+            }
+          } else {
+            it.strftime("%H", id(my_time).now());
+          }
+          // the tm1650 requires periods after the 3rd and 4th digits to activate the colon so some magic happens to make the colon blink
+          static int blinking = 0;
+          auto time_text = id(my_time).now().strftime("%M");
+          std::string min_a = (time_text.substr(0,1).c_str());
+          std::string min_b = (time_text.substr(1,1).c_str());
+          if (++blinking & 1) {
+            min_a.append(".");
+            min_b.append(".");
+          }
+          it.print(2, min_a.c_str());
+          it.print(3, min_b.c_str());
         }
-        static int blinking = 0;
-        auto time_text = id(my_time).now().strftime("%M");
-        std::string min_a = (time_text.substr(0,1).c_str());
-        std::string min_b = (time_text.substr(1,1).c_str());
-        if (++blinking & 1) {
-          min_a.append(".");
-          min_b.append(".");
-        }
-        it.print(2, min_a.c_str());
-        it.print(3, min_b.c_str());
       } else {
         it.print("$waiting");
       }
@@ -187,6 +237,34 @@ globals:
      type: int
      restore_value: true
      initial_value: '12'
+   - id: message
+     type: std::string
+     restore_value: false
+     initial_value: ''
+   - id: message_display_time
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: message_clock_time
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: message_alive_time
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: message_display_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: message_clock_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: message_alive_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
 
 select:
   - platform: template
