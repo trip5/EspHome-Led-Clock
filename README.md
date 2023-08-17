@@ -27,3 +27,18 @@ This example will send a message that will display for 3 seconds before revertin
 
 This will play a Nokia-style tune through the piezo speaker. I recommend just doing a search for "RTTTL" and the name of the song you would like.  If you really want a lot, check out: https://picaxe.com/rtttl-ringtones-for-tune-command/
 
+## Useful Links
+
+What started my curiousity: https://github.com/arendst/Tasmota/discussions/15788
+
+Tasmota Template: https://templates.blakadder.com/XY-Clock.html
+
+About the Rtttl Buzzer: https://esphome.io/components/rtttl.html
+
+TM 1650 External component: https://github.com/buzzer13/esphome-components
+
+About outputting to the Display: https://esphome.io/components/display/tm1637.html?highlight=tm1637
+
+What characters can be displayed: https://esphome.io/components/display/max7219.html#display-max7219-characters
+
+ESPHome's Display: https://esphome.io/components/display/index.html
