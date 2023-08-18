@@ -190,25 +190,26 @@ i2c:
   scan: true
   id: i2cbus
   
+# Check this section!
 binary_sensor:
   - platform: status
     name: "$friendly_name Status"
   - platform: gpio
     pin:
       number: $up_button_pin
-      inverted: true
+      inverted: true # Sinilink true / 303 true
       mode: INPUT_PULLUP
     name: "$friendly_name Up button"
   - platform: gpio
     pin:
       number: $down_button_pin
-      inverted: true
+      inverted: true # Sinilink true / 303 false
       mode: INPUT_PULLUP
     name: "$friendly_name Down button"
   - platform: gpio
     pin: 
       number: $set_button_pin
-      inverted: true
+      inverted: true # Sinilink true / 303 true
     name: "$friendly_name Set button"
 
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 4 lines
