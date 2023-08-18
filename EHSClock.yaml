@@ -52,15 +52,11 @@ wifi:
   # RestrictedArea
   - ssid: !secret wifi_ssid
     password: !secret wifi_password
-  # AE
-  - ssid: appleenglish
-    password: iloveenglish
   ap:
     ssid: "$name Hotspot"
     password: !secret ap_password
 
 external_components:
-
 # Use Trip5's for of Buzzer13's TM1650 ESPHome Component
   - source:
       type: git
