@@ -1,31 +1,47 @@
+# Please edit this file very carefully. It is well-commented so you can adapt it to your needs.
+
 substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
+  waiting: "ehLC" # shows when waiting for time
+# SCL & SDA are same for Sinilink and 303 Clocks
+  scl_pin: GPIO12
+  sda_pin: GPIO13
+
+# Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
+  segment_mapping: PGFEDCBA # Specific to the Sinilink XY-Clock
+#  segment_mapping: GBPEDCAF  # Specific to 303WIFILC01
+#  segment_mapping: PABCDEFG # normal TM1650
+
+# Sinilink Clock uses these pins for buttons
   down_button_pin: GPIO9
   up_button_pin: GPIO10 
   set_button_pin: GPIO16
-  scl_pin: GPIO12 
-  sda_pin: GPIO13
+# 303 Clock uses these pins for buttons
+#  down_button_pin: GPIO15
+#  up_button_pin: GPIO4
+#  set_button_pin: GPIO0
+
+# Sinilink and 303 both have a Red LED (Same GPIO)
   red_led_pin: GPIO2
+
+# Sinilink Clock has these additional devices. Comment or delete for 303.
   blue_led_pin: GPIO0
   buzzer_pin: GPIO5
   key_pin: GPIO14 #	Contact “KEY”
-  waiting: "ehSC" # shows when waiting for time
-
-# What started my curiousity: https://github.com/arendst/Tasmota/discussions/15788
-# Tasmota Template: https://templates.blakadder.com/XY-Clock.html
-# About the Rtttl Buzzer: https://esphome.io/components/rtttl.html
-# External component (required): https://github.com/buzzer13/esphome-components
-# About outputting to the Display: https://esphome.io/components/display/tm1637.html?highlight=tm1637
-# What characters can be displayed: https://esphome.io/components/display/max7219.html#display-max7219-characters
-# ESPHome's Display: https://esphome.io/components/display/index.html
 
 esphome:
   name: $name
-  comment: "EHSClock from Trip5"
+  comment: "EHLClock from Trip5"
   on_boot:
     then:
-      - ds1307.read_time
+# The Sinilink uses a DS1307 RTC (supported by ESPHome)
+      - ds1307.read_time:
+# The 303 uses a DS1302 RTC (will also require a custom component)
+#      - ds1302.read_time:
+      - globals.set:
+          id: segmentmap
+          value: !lambda 'return "$segment_mapping";'
 
 esp8266:
   board: esp8285
@@ -33,20 +49,79 @@ esp8266:
   
 wifi:
   networks:
+  # RestrictedArea
   - ssid: !secret wifi_ssid
     password: !secret wifi_password
+  # AE
+  - ssid: appleenglish
+    password: iloveenglish
   ap:
     ssid: "$name Hotspot"
     password: !secret ap_password
 
+external_components:
+
+# Use Trip5's for of Buzzer13's TM1650 ESPHome Component
+  - source:
+      type: git
+      url: https://github.com/trip5/esphome-tm1650
+      ref: main
+    refresh: 60s
+    components: [ tm1650 ]
+# Prefer a local source (only use one source)
+#  - source:
+#      type: local
+#      path: my-components/EHCL-Clock # e.g. /config/esphome/components
+#    components: [ tm1650 ]
+
+# The 303 Clock has a DS1302 RTC (uncomment this section to use it)
+#  - source:
+#      type: git
+#      url: https://github.com/trip5/esphome-ds1302
+#      ref: main
+#    refresh: 60s
+#    components: [ ds1302 ]
+
+time:
+# one platform must contain id: my_time
+  - platform: homeassistant
+    timezone: "Asia/Seoul" # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    update_interval: 8h
+    on_time_sync:
+      then:
+# The Sinilink Clock uses a DS1307 RTC
+        ds1307.write_time:
+# The 303 Clock uses a DS1302 RTC (uncomment this and delete the other if needed)
+#        ds1302.write_time:
+
+# The Sinilink Clock uses a DS1307 RTC
+  - platform: ds1307
+    id: my_time
+    update_interval: never
+
+# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the other if needed)
+#  - platform: ds1302
+#    id: my_time
+#    cs_pin: GPIO5
+#    dio_pin: GPIO14
+#    clk_pin: GPIO16
+#    update_interval: never
+
+# You could also get the time from an sntp server (if you use this, then it's recommended you disable all other time platforms)
+#  - platform: sntp
+#    id: my_time
+#    servers: kr.pool.ntp.org # keeping this commented uses defaults
+
 api:
   services:
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 6 lines
     - service: tune
       variables:
         tune: string
       then:
         - rtttl.play:
             rtttl: !lambda 'return tune;'
+# This next section creates the Home Assistant services to allow messages to be displayed
     - service: message
       variables:
         message: string
@@ -69,6 +144,9 @@ api:
         - globals.set:
             id: message_clock_time_count
             value: !lambda 'return message_clock_time;'
+        - globals.set:
+            id: message_alive_time_count
+            value: '0'
         - logger.log:
             format: "Message: %s"
             args: [ 'message.c_str()' ]
@@ -88,6 +166,8 @@ web_server:
   port: 80
   ota: true
   include_internal: true
+  js_include: "./www/v2_www.js"
+  js_url: ""
 
 captive_portal:
 
@@ -107,32 +187,6 @@ button:
     id: "Restart"
     internal: true
 
-external_components:
-#  - source: github://buzzer13/esphome-components@main
-#    components:
-#      - tm1650
-#  - source:
-#      type: local
-#      path: my-components/EHCL-Clock # e.g. /config/esphome/components
-#    components: [ tm1650 ]
-  - source:
-      type: git
-      url: https://github.com/trip5/esphome-tm1650
-      ref: main
-    refresh: 60s
-    components: [ tm1650 ]
-
-time:
-# one platform must contain id: my_time
-  - platform: homeassistant
-    timezone: "Asia/Seoul" # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-    update_interval: 8h
-    on_time_sync:
-      then:
-        ds1307.write_time:
-  - platform: ds1307
-    id: my_time
-    update_interval: never
 
 i2c:
   sda: $sda_pin
@@ -161,11 +215,13 @@ binary_sensor:
       inverted: true
     name: "$friendly_name Set button"
 
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 4 lines
 output:
   - platform: esp8266_pwm
     pin: $buzzer_pin
     id: rtttl_out
 
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 2 lines
 rtttl:
   output: rtttl_out
 
@@ -175,9 +231,7 @@ display:
     i2c_id: i2cbus
     # intensity: 1
     length: 4
-    segment_map: PGFEDCBA # Specific to the Sinilink XY-Clock, other clocks will use other mapping
-    # segment_map: PABCDEFG # normal tm1650
-    # segment_map: GBPEDCAF # Specific to 303WIFILC01
+    segment_map: $segment_mapping
     update_interval: 1s # change this to 500ms if you prefer the colon to blink faster (Warning that all interval times are now halved)
     # %H%M for 24 hours, %l%M for 12 hours
     lambda: |-
@@ -202,24 +256,37 @@ display:
             id(message_clock_time_count) += 1;
             id(message_alive_time_count) += 1;
           }
-          if (id(hour_mode) == 12) {
-            if (id(my_time).now().hour > 11) {
-              it.strftime("%l.", id(my_time).now());
-            } else {
-              it.strftime("%l", id(my_time).now());
-            }
-          } else {
-            it.strftime("%H", id(my_time).now());
-          }
-          // the tm1650 requires periods after the 3rd and 4th digits to activate the colon so some magic happens to make the colon blink
           static int blinking = 0;
-          auto time_text = id(my_time).now().strftime("%M");
-          std::string min_a = (time_text.substr(0,1).c_str());
-          std::string min_b = (time_text.substr(1,1).c_str());
-          if (++blinking & 1) {
-            min_a.append(".");
-            min_b.append(".");
+          auto timem_text = id(my_time).now().strftime("%M");
+          std::string min_a = (timem_text.substr(0,1).c_str());
+          std::string min_b = (timem_text.substr(1,1).c_str());
+          auto timeh_text = id(my_time).now().strftime("%H");
+          std::string hour_a = (timeh_text.substr(0,1).c_str());
+          std::string hour_b = (timeh_text.substr(1,1).c_str());
+          if (id(hour_mode) == 12) {
+            timeh_text = id(my_time).now().strftime("%l");
+            hour_a = (timeh_text.substr(0,1).c_str());
+            hour_b = (timeh_text.substr(1,1).c_str());
+            if (id(my_time).now().hour > 11) {
+              if (id(segmentmap) == "GBPEDCAF") {
+                min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
+              }
+              if (id(segmentmap) == "PGFEDCBA") {
+                hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
+              }
+            }
           }
+          if (++blinking & 1) {
+            if (id(segmentmap) == "GBPEDCAF") {
+              hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
+            }
+            if (id(segmentmap) == "PGFEDCBA") {
+              min_a.append(".");
+              min_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon
+            }
+          }
+          it.print(0, hour_a.c_str());
+          it.print(1, hour_b.c_str());
           it.print(2, min_a.c_str());
           it.print(3, min_b.c_str());
         }
@@ -265,6 +332,10 @@ globals:
      type: int
      restore_value: false
      initial_value: '0'
+   - id: segmentmap
+     type: std::string
+     restore_value: no
+     initial_value: ''
 
 select:
   - platform: template
