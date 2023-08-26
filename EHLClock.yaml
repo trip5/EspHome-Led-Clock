@@ -50,7 +50,6 @@ esp8266:
   
 wifi:
   networks:
-  # RestrictedArea
   - ssid: !secret wifi_ssid
     password: !secret wifi_password
   ap:
@@ -261,11 +260,6 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - select.previous: brightness_select
-      #Hold DOWN will...?
-      - timing:
-          - ON for at least 1s
-        then:
-          - lambda: |-
   - platform: gpio
     pin: 
       number: $set_button_pin
