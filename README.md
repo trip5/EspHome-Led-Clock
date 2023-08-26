@@ -34,14 +34,45 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ![image](./images/303WIFILC01-Pins.jpg)
 
+## Using This firmware
+
+This is ESPHome, so it's not pretty but very functional.  You should set your wifi information in the YAML and edit it carefully, especially if not using a Sinilink XY-Clock.
+I have included functionality for 2 alarms for now but you can likely increase that number.  You can also edit the tunes available to the clock by editing the RTTTL code
+(see below for some useful links).
+
+If using this device on a network outside your usual, ESPHome will, after 30 seconds, give up trying to connect to its "home" network and enter AP mode.
+You should then connect to the hotspot (with a mobile phone) and then go to 192.168.4.1 in a browser to select which local wifi network you would like it to connect to.
+The clock will display its IP address on boot and also by holding down the set button for more than 1 second. When returning home, you will have to go through this process again.
+Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (it doesn't by default anyways).
+
+There does appear to be some errors with "Component preferences took a long time for an operation" but it doesn't seem to affect functionality at all.
+
+### Screenshot
+
+Ideally, this would look a lot prettier than it does but there's not a lot I can with the default ESPHome WebUI.
+
+![image](./images/EHLC_Screenshot.png)
+
+### Button Functions
+
+By default, the buttons can be used as such:
+
+| Button  | Short-click Function | Long-press Function (hold for 1 second) |
+| ------- | -------------------- |----------------------------------------- |
+| Up      | Increase brightness  | Toggle alarms on/off |
+| Down    | Decrease brightness | - |
+| Set     | Toggle 12/24-hour mode | Show the clock's IP address |
+
+Of course, this is ESPHome, so you can change the button functions by editing the YAML.
+
 
 ## Integration with Home Assistant
 
-![image](./images/EHSC_Home_Assistant_message.png)
+![image](./images/EHLC_Home_Assistant_message.png)
 
 This example will send a message that will display for 3 seconds before reverting to the clock for 5 seconds, and repeat until 20 seconds is finished (if it is displaying the message, it will finish that last 3 seconds). Unfortunately you are limited to what the TM1650 can actually display so you should probably test it out before adding it to an automation. On the Sinilink, decimal places will only work after the 1st or 2nd digit since the colon actually relies on the 3rd and 4th decimal, so it's perfect for displaying weather or room temperatures or even crypto prices. On the 303, the decimal after the 2nd digit is non-functional and is used by the colon instead.
 
-![image](./images/EHSC_Home_Assistant_tune.png)
+![image](./images/EHLC_Home_Assistant_tune.png)
 
 The Sinilink Clock has a piezo speaker, so this service can play a Nokia-style tune through the piezo speaker. I recommend just doing a search for "RTTTL" and the name of the song you would like.  If you really want a lot, check out: https://picaxe.com/rtttl-ringtones-for-tune-command/
 

@@ -1,5 +1,3 @@
-# Please edit this file very carefully. It is well-commented so you can adapt it to your needs.
-
 substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
@@ -10,8 +8,8 @@ substitutions:
 
 # Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
   segment_mapping: PGFEDCBA # Specific to the Sinilink XY-Clock
-#  segment_mapping: GBPEDCAF  # Specific to 303WIFILC01
-#  segment_mapping: PABCDEFG # normal TM1650
+#  segment_mapping: GBPEDCAF # Specific to 303WIFILC01
+#  segment_mapping: PABCDEFG # normal TM1650 (support not really included yet)
 
 # Sinilink Clock uses these pins for buttons
   down_button_pin: GPIO9
@@ -28,16 +26,19 @@ substitutions:
 # Sinilink Clock has these additional devices. Comment or delete for 303.
   blue_led_pin: GPIO0
   buzzer_pin: GPIO5
-  key_pin: GPIO14 #	Contact “KEY”
+  key_pin: GPIO14 #	Contact 'KEY'
 
 esphome:
   name: $name
   comment: "EHLClock from Trip5"
+  project:
+    name: "Trip5.EspHomeLedClock"
+    version: "2023.08.26"
   on_boot:
     then:
 # The Sinilink uses a DS1307 RTC (supported by ESPHome)
       - ds1307.read_time:
-# The 303 uses a DS1302 RTC (will also require a custom component)
+# The 303 uses a DS1302 RTC (will also require an external component)
 #      - ds1302.read_time:
       - globals.set:
           id: segmentmap
@@ -57,7 +58,7 @@ wifi:
     password: !secret ap_password
 
 external_components:
-# Use Trip5's for of Buzzer13's TM1650 ESPHome Component
+# Use Trip5's fork of Buzzer13's TM1650 ESPHome Component
   - source:
       type: git
       url: https://github.com/trip5/esphome-tm1650
@@ -79,10 +80,12 @@ external_components:
 #    components: [ ds1302 ]
 
 time:
-# one platform must contain id: my_time
-  - platform: homeassistant
+  - platform: sntp
+# If you would rather use Home Assistant as a time source, delete the above line and uncomment the next line (but sntp means you can take your clock anywhere)
+#  - platform: homeassistant
     timezone: "Asia/Seoul" # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     update_interval: 8h
+#    id: my_time # one platform must contain id: my_time (so if you don't have an RTC or delete all references to the RTC, uncomment this line)
     on_time_sync:
       then:
 # The Sinilink Clock uses a DS1307 RTC
@@ -95,7 +98,7 @@ time:
     id: my_time
     update_interval: never
 
-# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the other if needed)
+# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above section if needed)
 #  - platform: ds1302
 #    id: my_time
 #    cs_pin: GPIO5
@@ -103,11 +106,35 @@ time:
 #    clk_pin: GPIO16
 #    update_interval: never
 
-# You could also get the time from an sntp server (if you use this, then it's recommended you disable all other time platforms)
-#  - platform: sntp
-#    id: my_time
-#    servers: kr.pool.ntp.org # keeping this commented uses defaults
+# Check if alarms need to be played (needs to be under whichever Platform has the ID, preferably the RTC or SNTP?)
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next ??? lines
+    on_time:
+      - seconds: 0
+        minutes: /1 # repeat every minute
+        then:
+        - lambda: |-
+            char displaytz1[6];
+            std::time_t tz1time = id(my_time).now().timestamp;
+            std::tm *tz1time_astm = localtime(&tz1time);
+            int tzhr = tz1time_astm->tm_hour;
+            int tzmin = tz1time_astm->tm_min;
+            ESP_LOGD("main", "Hour: %d", tzhr);
+            ESP_LOGD("main", "Minute: %d", tzmin);
+            if (id(alarms_on) == 1 && id(alarm1_hour) == tzhr && id(alarm1_min) == tzmin) {
+              // need to put all alarm tunes that exist nested here
+              if (id(alarm1_tune) == 1) { id(tune1).press(); };
+              if (id(alarm1_tune) == 2) { id(tune2).press(); };
+              if (id(alarm1_tune) == 3) { id(tune3).press(); };
+            };
+            // if you add an alarm3, duplicate and edit the entire next 'if'
+            if (id(alarms_on) == 1 && id(alarm2_hour) == tzhr && id(alarm2_min) == tzmin) {
+              // need to put all alarm tunes that exist nested here
+              if (id(alarm2_tune) == 1) { id(tune1).press(); };
+              if (id(alarm2_tune) == 2) { id(tune2).press(); };
+              if (id(alarm2_tune) == 3) { id(tune3).press(); };
+            };
 
+# The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section and make the sure the Time Source
 api:
   services:
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 6 lines
@@ -167,20 +194,24 @@ captive_portal:
 
 text_sensor:
   - platform: version
-    name: "Version"
+    name: "ESPHome Version"
     hide_timestamp: true
     internal: true
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      name: "$friendly_name IP Address"
+    ssid:
+      id: wifi_ssid
+      name: "$friendly_name SSID"
 
 status_led:
   pin:
     number: $red_led_pin
     inverted: true
 
-button:
-  - platform: restart
-    id: "Restart"
-    internal: true
-
+preferences:
+  flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended)
 
 i2c:
   sda: $sda_pin
@@ -189,6 +220,7 @@ i2c:
   id: i2cbus
   
 # Check this section!
+# Also, some info how to handle multi_click options: https://community.home-assistant.io/t/esphome-button-held-double-press/136083/10
 binary_sensor:
   - platform: status
     name: "$friendly_name Status"
@@ -198,17 +230,62 @@ binary_sensor:
       inverted: true # Sinilink true / 303 true
       mode: INPUT_PULLUP
     name: "$friendly_name Up button"
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_multi_click:
+      #Click UP will increase brightness
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - select.next: brightness_select
+      #Hold UP will toggle enable alarms / delete this part if Alarms don't exist anywhere else (the 303 Clock)
+      - timing:
+          - ON for at least 1s
+        then:
+          - switch.toggle: alarms_select
   - platform: gpio
     pin:
       number: $down_button_pin
       inverted: true # Sinilink true / 303 false
       mode: INPUT_PULLUP
     name: "$friendly_name Down button"
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_multi_click:
+      #Click DOWN will decrease brightness
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - select.previous: brightness_select
+      #Hold DOWN will...?
+      - timing:
+          - ON for at least 1s
+        then:
+          - lambda: |-
   - platform: gpio
     pin: 
       number: $set_button_pin
       inverted: true # Sinilink true / 303 true
     name: "$friendly_name Set button"
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_multi_click:
+      #Click SET will toggle 12-hour mode
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.5s
+        then:
+          - switch.toggle: hour12_select
+      #Hold SET will show the IP Address
+      - timing:
+          - ON for at least 1s
+        then:
+          - button.press: display_ip
 
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 4 lines
 output:
@@ -220,14 +297,16 @@ output:
 rtttl:
   output: rtttl_out
 
+# This section contains a lot of lambda code... if using the Sinilink or 303, you shouldn't have to edit this at all
+# If using something else, you may need to edit the segmentmap sections (conveniently 'if' sections), depending on how the decimals/colons are handled
+# If that's true, get back to me on github by opening an issue and help contribute to other displays this YAML can handle!
 display:
   - platform: tm1650
     id: disp_tm1650
     i2c_id: i2cbus
-    # intensity: 1
     length: 4
     segment_map: $segment_mapping
-    update_interval: 1s # change this to 500ms if you prefer the colon to blink faster (Warning that all interval times are now halved)
+    update_interval: 1s
     # %H%M for 24 hours, %l%M for 12 hours
     lambda: |-
       // Display the message if all conditions are met
@@ -258,7 +337,7 @@ display:
           auto timeh_text = id(my_time).now().strftime("%H");
           std::string hour_a = (timeh_text.substr(0,1).c_str());
           std::string hour_b = (timeh_text.substr(1,1).c_str());
-          if (id(hour_mode) == 12) {
+          if (id(hour12_mode) == 1) {
             timeh_text = id(my_time).now().strftime("%l");
             hour_a = (timeh_text.substr(0,1).c_str());
             hour_b = (timeh_text.substr(1,1).c_str());
@@ -290,15 +369,16 @@ display:
       }
       id(disp_tm1650)->set_intensity(id(brightness_level));
 
+# Example configuration entry
 globals:
    - id: brightness_level
      type: int
      restore_value: true
      initial_value: '1'
-   - id: hour_mode
-     type: int
+   - id: hour12_mode
+     type: bool
      restore_value: true
-     initial_value: '12'
+     initial_value: 'false'
    - id: message
      type: std::string
      restore_value: false
@@ -329,12 +409,161 @@ globals:
      initial_value: '0'
    - id: segmentmap
      type: std::string
-     restore_value: no
+     restore_value: false
      initial_value: ''
+   - id: IPAddressA
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: IPAddressB
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: IPAddressC
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: IPAddressD
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: alarms_on
+     type: bool
+     restore_value: true
+     initial_value: 'false'
+
+# Alarms Variables (edit as needed, each alarm requires 3 variables) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 24 lines
+   - id: alarm1_tune
+     type: int
+     restore_value: true
+     initial_value: '0'
+   - id: alarm1_hour
+     type: int
+     restore_value: true
+     initial_value: '0'
+   - id: alarm1_min
+     type: int
+     restore_value: true
+     initial_value: '0'
+   - id: alarm2_tune
+     type: int
+     restore_value: true
+     initial_value: '0'
+   - id: alarm2_hour
+     type: int
+     restore_value: true
+     initial_value: '0'
+   - id: alarm2_min
+     type: int
+     restore_value: true
+     initial_value: '0'
+
+button:
+  - platform: restart
+    id: "Restart"
+    internal: true
+  - platform: template
+    id: display_ip
+    name: "Display IP Address"
+    internal: true
+    on_press:
+      - lambda: |-
+          // int IPA[3], IPB[3], IPC[3], IPD[3];
+          int IPA, IPB, IPC, IPD;
+          sscanf((id(wifi_ip).state.c_str()), "%d.%d.%d.%d", &IPA, &IPB, &IPC, &IPD);
+          id(IPAddressA) = IPA;
+          id(IPAddressB) = IPB;
+          id(IPAddressC) = IPC;
+          id(IPAddressD) = IPD;
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message_clock_time) = 0;
+          id(message) = "IP";
+      - delay: 2s
+      - lambda: |-
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message) = to_string(id(IPAddressA));
+      - delay: 2s
+      - lambda: |-
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message) = to_string(id(IPAddressB));
+      - delay: 2s
+      - lambda: |-
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message) = to_string(id(IPAddressC));
+      - delay: 2s
+      - lambda: |-
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message) = to_string(id(IPAddressD));
+# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 12 lines
+  - platform: template
+    id: tune1
+    name: "Tune 1: Siren"
+    internal: true
+    on_press:
+     - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e'
+  - platform: template
+    id: tune2
+    name: "Tune 2: Scale Up"
+    internal: true
+    on_press:
+     - rtttl.play: 'scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b'
+  - platform: template
+    id: tune3
+    name: "Tune 3: Death"
+    internal: true
+    on_press:
+      - rtttl.play: "death:d=4,o=5,b=100:c.,c,8c,c.,d#,8d,d,8c,c,8c,2c."
+
+switch:
+  - platform: template
+    name: "$friendly_name 12 Hour Mode"
+    id: hour12_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(hour12_mode)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(hour12_mode) = true;
+    turn_off_action:
+        lambda: |-
+          id(hour12_mode) = false;
+# Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
+  - platform: template
+    name: "$friendly_name Alarms On"
+    id: alarms_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(alarms_on)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(alarms_on) = true;
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message) = ("ALon");
+    turn_off_action:
+        lambda: |-
+          id(alarms_on) = false;
+          id(message_alive_time) = 2;
+          id(message_display_time) = 2;
+          id(message) = ("Aoff");
 
 select:
   - platform: template
     name: "$friendly_name Brightness"
+    id: brightness_select
     restore_value: true
     optimistic: true
     options:
@@ -353,19 +582,250 @@ select:
         lambda: |-
           id(brightness_level) = atoi(x.c_str());
           ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+# Alarms UI Selector  (edit as needed, each alarm requires tune/hour/min selectors) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end
+# Alarm 1 UI Selector Begins
   - platform: template
-    name: "$friendly_name Hour Mode"
+    name: "$friendly_name Alarm 1 Tune"
     restore_value: true
     optimistic: true
-    options:
-      - '12'
-      - '24'
-    initial_option: '12'
+    options: # Make sure this matches how many tunes are available in the button section (the default is 3)
+      - 'Off'
+      - '1'
+      - '2'
+      - '3'
+    initial_option: 'Off'
     on_value:
       then:
         lambda: |-
-          id(hour_mode) = atoi(x.c_str());
-          ESP_LOGD("main", "Hour Mode: %d", id(hour_mode));
+          id(alarm1_tune) = atoi(x.substr(0,2).c_str());
+          ESP_LOGD("main", "Alarm 1 Tune: %d", id(alarm1_tune));
+  - platform: template
+    name: "$friendly_name Alarm 1 Hour"
+    restore_value: true
+    optimistic: true
+    options:
+      - '00'
+      - '01'
+      - '02'
+      - '03'
+      - '04'
+      - '05'
+      - '06'
+      - '07'
+      - '08'
+      - '09'
+      - '10'
+      - '11'
+      - '12'
+      - '13'
+      - '14'
+      - '15'
+      - '16'
+      - '17'
+      - '18'
+      - '19'
+      - '20'
+      - '21'
+      - '22'
+      - '23'
+    initial_option: '00'
+    on_value:
+      then:
+        lambda: |-
+          id(alarm1_hour) = atoi(x.c_str());
+          ESP_LOGD("main", "Alarm 1 hour value is: %d", id(alarm1_hour));
+  - platform: template
+    name: "$friendly_name Alarm 1 Minutes"
+    restore_value: true
+    optimistic: true
+    options:
+      - '00'
+      - '01'
+      - '02'
+      - '03'
+      - '04'
+      - '05'
+      - '06'
+      - '07'
+      - '08'
+      - '09'
+      - '10'
+      - '11'
+      - '12'
+      - '13'
+      - '14'
+      - '15'
+      - '16'
+      - '17'
+      - '18'
+      - '19'
+      - '20'
+      - '21'
+      - '22'
+      - '23'
+      - '24'
+      - '25'
+      - '26'
+      - '27'
+      - '28'
+      - '29'
+      - '30'
+      - '31'
+      - '32'
+      - '33'
+      - '34'
+      - '35'
+      - '36'
+      - '37'
+      - '38'
+      - '39'
+      - '40'
+      - '41'
+      - '42'
+      - '43'
+      - '44'
+      - '45'
+      - '46'
+      - '47'
+      - '48'
+      - '49'
+      - '50'
+      - '51'
+      - '52'
+      - '53'
+      - '54'
+      - '55'
+      - '56'
+      - '57'
+      - '58'
+      - '59'
+    initial_option: '00'
+    on_value:
+      then:
+        lambda: |-
+          id(alarm1_min) = atoi(x.c_str());
+          ESP_LOGD("main", "Alarm 1 minute value is: %d", id(alarm1_min));
 
-preferences:
-  flash_write_interval: 10s # 0 does immediate write to memory with no mem buffer (not recommended)
+# If you require more alarms, copy from the next line to the end and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
+# Alarm 2 UI Selector Begins
+  - platform: template
+    name: "$friendly_name Alarm 2 Tune"
+    restore_value: true
+    optimistic: true
+    options: # Make sure this matches how many tunes are available in the button section (the default is 3)
+      - 'Off'
+      - '1'
+      - '2'
+      - '3'
+    initial_option: 'Off'
+    on_value:
+      then:
+        lambda: |-
+          id(alarm2_tune) = atoi(x.substr(0,2).c_str());
+          ESP_LOGD("main", "Alarm 2 Tune: %d", id(alarm2_tune));
+  - platform: template
+    name: "$friendly_name Alarm 2 Hour"
+    restore_value: true
+    optimistic: true
+    options:
+      - '00'
+      - '01'
+      - '02'
+      - '03'
+      - '04'
+      - '05'
+      - '06'
+      - '07'
+      - '08'
+      - '09'
+      - '10'
+      - '11'
+      - '12'
+      - '13'
+      - '14'
+      - '15'
+      - '16'
+      - '17'
+      - '18'
+      - '19'
+      - '20'
+      - '21'
+      - '22'
+      - '23'
+    initial_option: '00'
+    on_value:
+      then:
+        lambda: |-
+          id(alarm2_hour) = atoi(x.c_str());
+          ESP_LOGD("main", "Alarm 2 hour value is: %d", id(alarm2_hour));
+  - platform: template
+    name: "$friendly_name Alarm 2 Minutes"
+    restore_value: true
+    optimistic: true
+    options:
+      - '00'
+      - '01'
+      - '02'
+      - '03'
+      - '04'
+      - '05'
+      - '06'
+      - '07'
+      - '08'
+      - '09'
+      - '10'
+      - '11'
+      - '12'
+      - '13'
+      - '14'
+      - '15'
+      - '16'
+      - '17'
+      - '18'
+      - '19'
+      - '20'
+      - '21'
+      - '22'
+      - '23'
+      - '24'
+      - '25'
+      - '26'
+      - '27'
+      - '28'
+      - '29'
+      - '30'
+      - '31'
+      - '32'
+      - '33'
+      - '34'
+      - '35'
+      - '36'
+      - '37'
+      - '38'
+      - '39'
+      - '40'
+      - '41'
+      - '42'
+      - '43'
+      - '44'
+      - '45'
+      - '46'
+      - '47'
+      - '48'
+      - '49'
+      - '50'
+      - '51'
+      - '52'
+      - '53'
+      - '54'
+      - '55'
+      - '56'
+      - '57'
+      - '58'
+      - '59'
+    initial_option: '00'
+    on_value:
+      then:
+        lambda: |-
+          id(alarm2_min) = atoi(x.c_str());
+          ESP_LOGD("main", "Alarm 2 minute value is: %d", id(alarm2_min));
