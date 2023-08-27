@@ -349,18 +349,18 @@ display:
             min_a = "0";
           }
           if (id(hour12_mode) == 1) {
-            if (tzhr == 0) {
-              hour_a = "1";
-              hour_b = "2";
-            }
             if (tzhr > 12) {
               timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
               hour_a = (timeh_text.substr(0,1).c_str());
               hour_b = (timeh_text.substr(1,1).c_str());
             }
-            if ((tzhr < 22) || (tzhr < 10)) {
+            if ((tzhr < 22 && tzhr > 12) || (tzhr < 10)) {
               hour_b = hour_a;
               hour_a = " ";
+            }
+            if (tzhr == 0) {
+              hour_a = "1";
+              hour_b = "2";
             }
             if (tzhr > 11) {
               if (id(segmentmap) == "GBPEDCAF") {
