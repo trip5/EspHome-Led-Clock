@@ -45,7 +45,7 @@ You should then connect to the hotspot (with a mobile phone) and then go to 192.
 The clock will display its IP address on boot and also by holding down the set button for more than 1 second. When returning home, you will have to go through this process again.
 Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (it doesn't by default anyways).
 
-There does appear to be some errors with "Component preferences took a long time for an operation" but it doesn't seem to affect functionality at all.
+There does appear to be some errors with "Component preferences took a long time for an operation" but it only happens when saving persistent variables to flash and doesn't seem to affect functionality, unless you try to change a variable during this moment.
 
 ### Screenshot
 
@@ -60,11 +60,18 @@ By default, the buttons can be used as such:
 | Button  | Short-click Function | Long-press Function (hold for 1 second) |
 | ------- | -------------------- |----------------------------------------- |
 | Up      | Increase brightness  | Toggle alarms on/off |
-| Down    | Decrease brightness | - |
+| Down    | Decrease brightness | Change timezone offset |
 | Set     | Toggle 12/24-hour mode | Show the clock's IP address |
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML.
 
+### Time Zones
+
+It's up to you how to handle time zones. I prefer to keep my home time zone (Korea) as the one I live in and use the offset option according to the time difference with Korea.
+The offsets I include are mostly for demonstration purposes.  You can use positive or negative values and decimal places in your choices (ie. 2, -2, 1.5).
+
+You could set your home time zone to GMT and make the default offset match your home.  I haven't really experimented with this way so your mileage may vary,
+especially if you live in an area that uses Daylight Savings Time.
 
 ## Integration with Home Assistant
 

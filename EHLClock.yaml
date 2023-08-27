@@ -2,6 +2,7 @@ substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
   waiting: "ehLC" # shows when waiting for time
+  time_zone: "Asia/Seoul" # This will be your 'home' Timezone. Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 # SCL & SDA are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
   sda_pin: GPIO13
@@ -23,7 +24,7 @@ substitutions:
 # Sinilink and 303 both have a Red LED (Same GPIO)
   red_led_pin: GPIO2
 
-# Sinilink Clock has these additional devices. Comment or delete for 303.
+# Sinilink Clock has these additional GPIOs / delete for 303
   blue_led_pin: GPIO0
   buzzer_pin: GPIO5
   key_pin: GPIO14 #	Contact 'KEY'
@@ -33,16 +34,16 @@ esphome:
   comment: "EHLClock from Trip5"
   project:
     name: "Trip5.EspHomeLedClock"
-    version: "2023.08.26"
+    version: "2023.08.27"
   on_boot:
     then:
+      - globals.set:
+          id: segmentmap
+          value: !lambda 'return "$segment_mapping";'
 # The Sinilink uses a DS1307 RTC (supported by ESPHome)
       - ds1307.read_time:
 # The 303 uses a DS1302 RTC (will also require an external component)
 #      - ds1302.read_time:
-      - globals.set:
-          id: segmentmap
-          value: !lambda 'return "$segment_mapping";'
 
 esp8266:
   board: esp8285
@@ -82,7 +83,7 @@ time:
   - platform: sntp
 # If you would rather use Home Assistant as a time source, delete the above line and uncomment the next line (but sntp means you can take your clock anywhere)
 #  - platform: homeassistant
-    timezone: "Asia/Seoul" # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    timezone: "$time_zone"
     update_interval: 8h
 #    id: my_time # one platform must contain id: my_time (so if you don't have an RTC or delete all references to the RTC, uncomment this line)
     on_time_sync:
@@ -95,6 +96,7 @@ time:
 # The Sinilink Clock uses a DS1307 RTC
   - platform: ds1307
     id: my_time
+    timezone: "$time_zone"
     update_interval: never
 
 # The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above section if needed)
@@ -104,16 +106,18 @@ time:
 #    dio_pin: GPIO14
 #    clk_pin: GPIO16
 #    update_interval: never
+#    timezone: "$time_zone"
 
 # Check if alarms need to be played (needs to be under whichever Platform has the ID, preferably the RTC or SNTP?)
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next ??? lines
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the entire section
+# If you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed
     on_time:
       - seconds: 0
         minutes: /1 # repeat every minute
         then:
         - lambda: |-
-            char displaytz1[6];
-            std::time_t tz1time = id(my_time).now().timestamp;
+            int offset = (int)(60*60*(id(tzoffset)));
+            std::time_t tz1time = (id(my_time).now().timestamp+offset);
             std::tm *tz1time_astm = localtime(&tz1time);
             int tzhr = tz1time_astm->tm_hour;
             int tzmin = tz1time_astm->tm_min;
@@ -133,7 +137,7 @@ time:
               if (id(alarm2_tune) == 3) { id(tune3).press(); };
             };
 
-# The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section and make the sure the Time Source
+# The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section
 api:
   services:
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 6 lines
@@ -210,7 +214,7 @@ status_led:
     inverted: true
 
 preferences:
-  flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended)
+  flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended) (only saves when persistent variables have changed)
 
 i2c:
   sda: $sda_pin
@@ -218,7 +222,7 @@ i2c:
   scan: true
   id: i2cbus
   
-# Check this section!
+# Check this section carefully!
 # Also, some info how to handle multi_click options: https://community.home-assistant.io/t/esphome-button-held-double-press/136083/10
 binary_sensor:
   - platform: status
@@ -260,6 +264,11 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - select.previous: brightness_select
+      #Hold DOWN will select next timezone offset
+      - timing:
+          - ON for at least 1s
+        then:
+          - select.next: tzoffset_select
   - platform: gpio
     pin: 
       number: $set_button_pin
@@ -301,7 +310,6 @@ display:
     length: 4
     segment_map: $segment_mapping
     update_interval: 1s
-    # %H%M for 24 hours, %l%M for 12 hours
     lambda: |-
       // Display the message if all conditions are met
       if (id(my_time).now().is_valid()) {
@@ -325,23 +333,47 @@ display:
             id(message_alive_time_count) += 1;
           }
           static int blinking = 0;
-          auto timem_text = id(my_time).now().strftime("%M");
-          std::string min_a = (timem_text.substr(0,1).c_str());
-          std::string min_b = (timem_text.substr(1,1).c_str());
-          auto timeh_text = id(my_time).now().strftime("%H");
+          int offset = (int)(60*60*(id(tzoffset)));
+          std::time_t tz1time = (id(my_time).now().timestamp+offset);
+          std::tm *tz1time_astm = localtime(&tz1time);
+          int tzhr = tz1time_astm->tm_hour;
+          int tzmin = tz1time_astm->tm_min;
+          std::string timeh_text = std::to_string(tz1time_astm->tm_hour);
           std::string hour_a = (timeh_text.substr(0,1).c_str());
           std::string hour_b = (timeh_text.substr(1,1).c_str());
+          std::string timem_text = std::to_string(tz1time_astm->tm_min);
+          std::string min_a = (timem_text.substr(0,1).c_str());
+          std::string min_b = (timem_text.substr(1,1).c_str());
+          if (tzmin < 10) {
+            min_b = min_a;
+            min_a = "0";
+          }
           if (id(hour12_mode) == 1) {
-            timeh_text = id(my_time).now().strftime("%l");
-            hour_a = (timeh_text.substr(0,1).c_str());
-            hour_b = (timeh_text.substr(1,1).c_str());
-            if (id(my_time).now().hour > 11) {
+            if (tzhr == 0) {
+              hour_a = "1";
+              hour_b = "2";
+            }
+            if (tzhr > 12) {
+              timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
+              hour_a = (timeh_text.substr(0,1).c_str());
+              hour_b = (timeh_text.substr(1,1).c_str());
+            }
+            if ((tzhr < 22) || (tzhr < 10)) {
+              hour_b = hour_a;
+              hour_a = " ";
+            }
+            if (tzhr > 11) {
               if (id(segmentmap) == "GBPEDCAF") {
                 min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
               }
               if (id(segmentmap) == "PGFEDCBA") {
                 hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
               }
+            }
+          } else {
+            if (tzhr < 10) {
+              hour_b = hour_a;
+              hour_a = "0";
             }
           }
           if (++blinking & 1) {
@@ -369,6 +401,10 @@ globals:
      type: int
      restore_value: true
      initial_value: '1'
+   - id: tzoffset
+     type: float
+     restore_value: true
+     initial_value: '0'
    - id: hour12_mode
      type: bool
      restore_value: true
@@ -576,6 +612,23 @@ select:
         lambda: |-
           id(brightness_level) = atoi(x.c_str());
           ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+# This is where your Timezone offsets can be selected.
+  - platform: template
+    name: "$friendly_name Home Time Zone Offset"
+    id: tzoffset_select
+    restore_value: true
+    optimistic: true
+    options:
+      - '0'
+      - '12'
+      - '-3'
+      - '0.5'
+    initial_option: '0'
+    on_value:
+      then:
+        lambda: |-
+          id(tzoffset) = atof(x.c_str());
+          ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
 # Alarms UI Selector  (edit as needed, each alarm requires tune/hour/min selectors) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end
 # Alarm 1 UI Selector Begins
   - platform: template
