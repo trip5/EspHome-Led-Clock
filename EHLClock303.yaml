@@ -21,7 +21,7 @@ esphome:
   comment: "EHLClock from Trip5"
   project:
     name: "Trip5.EspHomeLedClock"
-    version: "2023.08.27"
+    version: "2023.09.09"
   on_boot:
     then:
       - globals.set:
@@ -177,7 +177,7 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - select.next: brightness_select
+          - number.increment: brightness_select
   - platform: gpio
     pin:
       number: $down_button_pin
@@ -193,7 +193,7 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - select.previous: brightness_select
+          - number.decrement: brightness_select
       #Hold DOWN will select next timezone offset
       - timing:
           - ON for at least 1s
@@ -442,28 +442,23 @@ switch:
         lambda: |-
           id(hour12_mode) = false;
 
-select:
+number:
   - platform: template
     name: "$friendly_name Brightness"
     id: brightness_select
     restore_value: true
     optimistic: true
-    options:
-      - '0'
-      - '1'
-      - '2'
-      - '3'
-      - '4'
-      - '5'
-      - '6'
-      - '7'
-      - '8'
-    initial_option: '1'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 8
+    mode: slider
+    set_action:
       then:
         lambda: |-
-          id(brightness_level) = atoi(x.c_str());
+          id(brightness_level) = x;
           ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+
+select:
 # This is where your Timezone offsets can be selected - edit the numbers as needed
   - platform: template
     name: "$friendly_name Home Time Zone Offset"
