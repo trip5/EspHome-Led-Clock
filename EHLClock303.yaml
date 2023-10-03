@@ -21,7 +21,7 @@ esphome:
   comment: "EHLClock from Trip5"
   project:
     name: "Trip5.EspHomeLedClock"
-    version: "2023.09.09"
+    version: "2023.10.04"
   on_boot:
     then:
       - globals.set:
@@ -296,7 +296,7 @@ display:
               hour_a = "0";
             }
           }
-          if (++blinking & 1) {
+          if (((++blinking & 1) && (id(blink_option) == 1)) || (id(blink_option) == 2)) {
             if (id(segmentmap) == "GBPEDCAF") {
               hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
             }
@@ -381,6 +381,10 @@ globals:
      type: bool
      restore_value: true
      initial_value: 'false'
+   - id: blink_option
+     type: int
+     restore_value: true
+     initial_value: '1'
 
 button:
   - platform: restart
@@ -476,3 +480,18 @@ select:
         lambda: |-
           id(tzoffset) = atof(x.c_str());
           ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
+  - platform: template
+    name: "$friendly_name Colon Blink (0=Off / 1=On / 2=Always On)"
+    id: blink_option_select
+    restore_value: true
+    optimistic: true
+    options:
+      - '0'
+      - '1'
+      - '2'
+    initial_option: '1'
+    on_value:
+      then:
+        lambda: |-
+          id(blink_option) = atoi(x.substr(0,2).c_str());
+          ESP_LOGD("main", "Colon Blink: %d", id(blink_option));

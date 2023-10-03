@@ -1,6 +1,6 @@
 substitutions:
-  name:  xy-clock-blue
-  friendly_name: XY-Clock-Blue
+  name:  xy-clock-white
+  friendly_name: XY-Clock-White
   waiting: "ehLC" # shows when waiting for time
   time_zone: "Asia/Seoul" # This will be your 'home' Timezone. Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 # SCL & SDA are same for Sinilink and 303 Clocks
@@ -34,7 +34,7 @@ esphome:
   comment: "EHLClock from Trip5"
   project:
     name: "Trip5.EspHomeLedClock"
-    version: "2023.09.09"
+    version: "2023.10.04"
   on_boot:
     then:
       - globals.set:
@@ -376,7 +376,7 @@ display:
               hour_a = "0";
             }
           }
-          if (++blinking & 1) {
+          if (((++blinking & 1) && (id(blink_option) == 1)) || (id(blink_option) == 2)) {
             if (id(segmentmap) == "GBPEDCAF") {
               hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
             }
@@ -461,6 +461,10 @@ globals:
      type: bool
      restore_value: true
      initial_value: 'false'
+   - id: blink_option
+     type: int
+     restore_value: true
+     initial_value: '1'
 
 # Alarms Variables (edit as needed, each alarm requires 3 variables) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 24 lines
    - id: alarm1_tune
@@ -607,7 +611,7 @@ number:
           ESP_LOGD("main", "Brightness: %d", id(brightness_level));
 
 select:
-# This is where your Timezone offsets can be selected.
+# This is where your Timezone offsets can be selected. Edit the 'options' as needed.
   - platform: template
     name: "$friendly_name Home Time Zone Offset"
     id: tzoffset_select
@@ -624,6 +628,22 @@ select:
         lambda: |-
           id(tzoffset) = atof(x.c_str());
           ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
+  - platform: template
+    name: "$friendly_name Colon Blink (0=Off / 1=On / 2=Always On)"
+    id: blink_option_select
+    restore_value: true
+    optimistic: true
+    options:
+      - '0'
+      - '1'
+      - '2'
+    initial_option: '1'
+    on_value:
+      then:
+        lambda: |-
+          id(blink_option) = atoi(x.substr(0,2).c_str());
+          ESP_LOGD("main", "Colon Blink: %d", id(blink_option));
+
 # Alarms UI Selector  (edit as needed, each alarm requires tune/hour/min selectors) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end
 # Alarm 1 UI Selector Begins
   - platform: template
