@@ -6,6 +6,8 @@ substitutions:
 # SCL & SDA are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
   sda_pin: GPIO13
+
+# Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
   segment_mapping: GBPEDCAF # Specific to 303WIFILC01
 
 # 303 Clock uses these pins for buttons
@@ -21,7 +23,7 @@ esphome:
   comment: "EHLClock from Trip5"
   project:
     name: "Trip5.EspHomeLedClock"
-    version: "2023.10.04"
+    version: "2023.10.22"
   on_boot:
     then:
       - globals.set:
@@ -50,8 +52,13 @@ external_components:
       ref: main
     refresh: 60s
     components: [ tm1650 ]
+# Prefer a local source (only use one source)
+#  - source:
+#      type: local
+#      path: my-components/EHCL-Clock # e.g. /config/esphome/components
+#    components: [ tm1650 ]
 
-# The 303 Clock has a DS1302 RTC (uncomment this section to use it)
+# The 303 Clock has a DS1302 RTC (uncomment this section to use it), use Trip5's fork of Trombik's DS1302 ESPHome Component
   - source:
       type: git
       url: https://github.com/trip5/esphome-ds1302
@@ -68,9 +75,10 @@ time:
 #    id: my_time # one platform must contain id: my_time (so if you don't have an RTC or delete all references to the RTC, uncomment this line)
     on_time_sync:
       then:
-# The 303 Clock uses a DS1302 RTC (uncomment this and delete the other if needed)
+# The 303 Clock uses a DS1302 RTC
         ds1302.write_time:
-# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above section if needed)
+
+# The 303 Clock uses a DS1302 RTC
   - platform: ds1302
     id: my_time
     cs_pin: GPIO5
@@ -194,11 +202,11 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - number.decrement: brightness_select
-      #Hold DOWN will select next timezone offset
+      #Hold DOWN will select enable or disable time zone offset
       - timing:
           - ON for at least 1s
         then:
-          - select.next: tzoffset_select
+          - switch.toggle: tzoffset_on_select
   - platform: gpio
     pin: 
       number: $set_button_pin
@@ -253,62 +261,106 @@ display:
             id(message_alive_time_count) += 1;
           }
           static int blinking = 0;
-          int offset = (int)(60*60*(id(tzoffset)));
+          int offset = 0;
+          if (id(tzoffset_on) != 0) {
+            offset = (int)(60*60*(id(tzoffset)));
+          }
           std::time_t tz1time = (id(my_time).now().timestamp+offset);
           std::tm *tz1time_astm = localtime(&tz1time);
-          int tzhr = tz1time_astm->tm_hour;
-          int tzmin = tz1time_astm->tm_min;
-          std::string timeh_text = std::to_string(tz1time_astm->tm_hour);
-          std::string hour_a = (timeh_text.substr(0,1).c_str());
-          std::string hour_b = (timeh_text.substr(1,1).c_str());
-          std::string timem_text = std::to_string(tz1time_astm->tm_min);
-          std::string min_a = (timem_text.substr(0,1).c_str());
-          std::string min_b = (timem_text.substr(1,1).c_str());
-          if (tzmin < 10) {
-            min_b = min_a;
-            min_a = "0";
-          }
-          if (id(hour12_mode) == 1) {
-            if (tzhr > 12) {
-              timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
-              hour_a = (timeh_text.substr(0,1).c_str());
-              hour_b = (timeh_text.substr(1,1).c_str());
+          // check if the date should be displayed
+          if ((id(date_display_time_count) >= (id(date_display_interval))) && (id(date_display_mode) != 0)) {
+            id(date_display_count) += 1;
+            // display date
+            int tzmon = (tz1time_astm->tm_mon) + 1;
+            int tzmday = tz1time_astm->tm_mday;
+            std::string timemon_text = std::to_string(tzmon);
+            std::string timemday_text = std::to_string(tzmday);
+            std::string mon_a = (timemon_text.substr(0,1).c_str());
+            std::string mon_b = (timemon_text.substr(1,1).c_str());
+            std::string mday_a = (timemday_text.substr(0,1).c_str());
+            std::string mday_b = (timemday_text.substr(1,1).c_str());
+            if (tzmon < 10) {
+              mon_b = mon_a;
+              mon_a = "0";
             }
-            if ((tzhr < 22 && tzhr > 12) || (tzhr < 10)) {
-              hour_b = hour_a;
-              hour_a = " ";
+            if (tzmday < 10) {
+              mday_b = mday_a;
+              mday_a = "0";
             }
-            if (tzhr == 0) {
-              hour_a = "1";
-              hour_b = "2";
+            if (id(date_display_mode_us) != 0) {
+              it.print(0, mday_a.c_str());
+              it.print(1, mday_b.c_str());
+              it.print(2, mon_a.c_str());
+              it.print(3, mon_b.c_str());
+            } else {
+              it.print(0, mon_a.c_str());
+              it.print(1, mon_b.c_str());
+              it.print(2, mday_a.c_str());
+              it.print(3, mday_b.c_str());
             }
-            if (tzhr > 11) {
-              if (id(segmentmap) == "GBPEDCAF") {
-                min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
-              }
-              if (id(segmentmap) == "PGFEDCBA") {
-                hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
-              }
+            if (id(date_display_count) >= id(date_display_time)) {
+              id(date_display_time_count) = 0;
             }
           } else {
-            if (tzhr < 10) {
-              hour_b = hour_a;
-              hour_a = "0";
+            id(date_display_count) = 0;
+            // display time
+            if (id(date_display_mode) != 0) {
+              id(date_display_time_count) += 1;
             }
+            int tzhr = tz1time_astm->tm_hour;
+            int tzmin = tz1time_astm->tm_min;
+            std::string timeh_text = std::to_string(tzhr);
+            std::string timem_text = std::to_string(tzmin);
+            std::string hour_a = (timeh_text.substr(0,1).c_str());
+            std::string hour_b = (timeh_text.substr(1,1).c_str());
+            std::string min_a = (timem_text.substr(0,1).c_str());
+            std::string min_b = (timem_text.substr(1,1).c_str());
+            if (tzmin < 10) {
+              min_b = min_a;
+              min_a = "0";
+            }
+            if (id(hour12_mode) == 1) {
+              if (tzhr > 12) {
+                timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
+                hour_a = (timeh_text.substr(0,1).c_str());
+                hour_b = (timeh_text.substr(1,1).c_str());
+              }
+              if ((tzhr < 22 && tzhr > 12) || (tzhr < 10)) {
+                hour_b = hour_a;
+                hour_a = " ";
+              }
+              if (tzhr == 0) {
+                hour_a = "1";
+                hour_b = "2";
+              }
+              if (tzhr > 11) {
+                if (id(segmentmap) == "GBPEDCAF") {
+                  min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
+                }
+                if (id(segmentmap) == "PGFEDCBA") {
+                  hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
+                }
+              }
+            } else {
+              if (tzhr < 10) {
+                hour_b = hour_a;
+                hour_a = "0";
+              }
+            }
+            if (((++blinking & 1) && (id(blink_option) == 1)) || (id(blink_option) == 2)) {
+              if (id(segmentmap) == "GBPEDCAF") {
+                hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
+              }
+              if (id(segmentmap) == "PGFEDCBA") {
+                min_a.append(".");
+                min_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon
+              }
+            }
+            it.print(0, hour_a.c_str());
+            it.print(1, hour_b.c_str());
+            it.print(2, min_a.c_str());
+            it.print(3, min_b.c_str());
           }
-          if (((++blinking & 1) && (id(blink_option) == 1)) || (id(blink_option) == 2)) {
-            if (id(segmentmap) == "GBPEDCAF") {
-              hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
-            }
-            if (id(segmentmap) == "PGFEDCBA") {
-              min_a.append(".");
-              min_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon
-            }
-          }
-          it.print(0, hour_a.c_str());
-          it.print(1, hour_b.c_str());
-          it.print(2, min_a.c_str());
-          it.print(3, min_b.c_str());
         }
       } else {
         it.print("$waiting");
@@ -321,11 +373,15 @@ globals:
      type: int
      restore_value: true
      initial_value: '1'
+   - id: hour12_mode
+     type: bool
+     restore_value: true
+     initial_value: 'false'
    - id: tzoffset
      type: float
      restore_value: true
      initial_value: '0'
-   - id: hour12_mode
+   - id: tzoffset_on
      type: bool
      restore_value: true
      initial_value: 'false'
@@ -385,6 +441,30 @@ globals:
      type: int
      restore_value: true
      initial_value: '1'
+   - id: date_display_mode
+     type: bool
+     restore_value: true
+     initial_value: 'false'
+   - id: date_display_mode_us
+     type: bool
+     restore_value: true
+     initial_value: 'false'
+   - id: date_display_interval
+     type: int
+     restore_value: true
+     initial_value: '12'
+   - id: date_display_time
+     type: int
+     restore_value: true
+     initial_value: '3'
+   - id: date_display_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: date_display_count
+     type: int
+     restore_value: false
+     initial_value: '0'
 
 button:
   - platform: restart
@@ -445,41 +525,56 @@ switch:
     turn_off_action:
         lambda: |-
           id(hour12_mode) = false;
-
-number:
   - platform: template
-    name: "$friendly_name Brightness"
-    id: brightness_select
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 8
-    mode: slider
-    set_action:
-      then:
+    name: "$friendly_name Date Display US Mode (DDMM)"
+    id: date_display_mode_us_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(date_display_mode_us)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
         lambda: |-
-          id(brightness_level) = x;
-          ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+          id(date_display_mode_us) = true;
+    turn_off_action:
+        lambda: |-
+          id(date_display_mode_us) = false;
+  - platform: template
+    name: "$friendly_name Home Time Zone Offset On"
+    id: tzoffset_on_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(tzoffset_on)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(tzoffset_on) = true;
+    turn_off_action:
+        lambda: |-
+          id(tzoffset_on) = false;
+  - platform: template
+    name: "$friendly_name Date Display Mode"
+    id: date_mode_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(date_display_mode)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(date_display_mode) = true;
+    turn_off_action:
+        lambda: |-
+          id(date_display_mode) = false;
 
 select:
-# This is where your Timezone offsets can be selected - edit the numbers as needed
-  - platform: template
-    name: "$friendly_name Home Time Zone Offset"
-    id: tzoffset_select
-    restore_value: true
-    optimistic: true
-    options:
-      - '0'
-      - '12'
-      - '-3'
-      - '0.5'
-    initial_option: '0'
-    on_value:
-      then:
-        lambda: |-
-          id(tzoffset) = atof(x.c_str());
-          ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
   - platform: template
     name: "$friendly_name Colon Blink (0=Off / 1=On / 2=Always On)"
     id: blink_option_select
@@ -495,3 +590,68 @@ select:
         lambda: |-
           id(blink_option) = atoi(x.substr(0,2).c_str());
           ESP_LOGD("main", "Colon Blink: %d", id(blink_option));
+
+number:
+  - platform: template
+    name: "$friendly_name Brightness"
+    id: brightness_select
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 0
+    max_value: 8
+    initial_value: 1
+    mode: slider
+    set_action:
+      then:
+        lambda: |-
+          id(brightness_level) = x;
+          ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+  - platform: template
+    name: "$friendly_name Date Display Interval"
+    id: date_display_interval_select
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 60
+    initial_value: 8
+    mode: box
+    unit_of_measurement: seconds
+    set_action:
+      then:
+        lambda: |-
+          id(date_display_interval) = x;
+          ESP_LOGD("main", "Date Display Interval: %d", id(date_display_interval));
+  - platform: template
+    name: "$friendly_name Date Display Time"
+    id: date_display_time_select
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 60
+    initial_value: 2
+    mode: box
+    unit_of_measurement: seconds
+    set_action:
+      then:
+        lambda: |-
+          id(date_display_time) = x;
+          ESP_LOGD("main", "Date Display Time: %d", id(date_display_time));
+  - platform: template
+    name: "$friendly_name Home Time Zone Offset"
+    id: tzoffset_select
+    restore_value: true
+    optimistic: true
+    step: 0.25
+    min_value: -26
+    max_value: 26
+    initial_value: 1
+    mode: box
+    unit_of_measurement: hours
+    set_action:
+      then:
+        lambda: |-
+          id(tzoffset) = x;
+          ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));

@@ -34,7 +34,7 @@ esphome:
   comment: "EHLClock from Trip5"
   project:
     name: "Trip5.EspHomeLedClock"
-    version: "2023.10.04"
+    version: "2023.10.22"
   on_boot:
     then:
       - globals.set:
@@ -99,7 +99,7 @@ time:
     timezone: "$time_zone"
     update_interval: never
 
-# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above section if needed)
+# The 303 Clock has a DS1302 RTC (uncomment this section to use it), use Trip5's fork of Trombik's DS1302 ESPHome Component
 #  - platform: ds1302
 #    id: my_time
 #    cs_pin: GPIO5
@@ -116,7 +116,10 @@ time:
         minutes: /1 # repeat every minute
         then:
         - lambda: |-
-            int offset = (int)(60*60*(id(tzoffset)));
+            int offset = 0;
+            if (id(tzoffset_on) != 0) {
+              offset = (int)(60*60*(id(tzoffset)));
+            }
             std::time_t tz1time = (id(my_time).now().timestamp+offset);
             std::tm *tz1time_astm = localtime(&tz1time);
             int tzhr = tz1time_astm->tm_hour;
@@ -243,7 +246,7 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - number.increment: brightness_select
-      #Hold UP will toggle enable alarms / delete this part if Alarms don't exist anywhere else (the 303 Clock)
+      #Hold UP will toggle enable or disable alarms / delete this part if Alarms don't exist anywhere else (the 303 Clock)
       - timing:
           - ON for at least 1s
         then:
@@ -264,11 +267,11 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - number.decrement: brightness_select
-      #Hold DOWN will select next timezone offset
+      #Hold DOWN will select enable or disable time zone offset
       - timing:
           - ON for at least 1s
         then:
-          - select.next: tzoffset_select
+          - switch.toggle: tzoffset_on_select
   - platform: gpio
     pin: 
       number: $set_button_pin
@@ -333,62 +336,106 @@ display:
             id(message_alive_time_count) += 1;
           }
           static int blinking = 0;
-          int offset = (int)(60*60*(id(tzoffset)));
+          int offset = 0;
+          if (id(tzoffset_on) != 0) {
+            offset = (int)(60*60*(id(tzoffset)));
+          }
           std::time_t tz1time = (id(my_time).now().timestamp+offset);
           std::tm *tz1time_astm = localtime(&tz1time);
-          int tzhr = tz1time_astm->tm_hour;
-          int tzmin = tz1time_astm->tm_min;
-          std::string timeh_text = std::to_string(tz1time_astm->tm_hour);
-          std::string hour_a = (timeh_text.substr(0,1).c_str());
-          std::string hour_b = (timeh_text.substr(1,1).c_str());
-          std::string timem_text = std::to_string(tz1time_astm->tm_min);
-          std::string min_a = (timem_text.substr(0,1).c_str());
-          std::string min_b = (timem_text.substr(1,1).c_str());
-          if (tzmin < 10) {
-            min_b = min_a;
-            min_a = "0";
-          }
-          if (id(hour12_mode) == 1) {
-            if (tzhr > 12) {
-              timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
-              hour_a = (timeh_text.substr(0,1).c_str());
-              hour_b = (timeh_text.substr(1,1).c_str());
+          // check if the date should be displayed
+          if ((id(date_display_time_count) >= (id(date_display_interval))) && (id(date_display_mode) != 0)) {
+            id(date_display_count) += 1;
+            // display date
+            int tzmon = (tz1time_astm->tm_mon) + 1;
+            int tzmday = tz1time_astm->tm_mday;
+            std::string timemon_text = std::to_string(tzmon);
+            std::string timemday_text = std::to_string(tzmday);
+            std::string mon_a = (timemon_text.substr(0,1).c_str());
+            std::string mon_b = (timemon_text.substr(1,1).c_str());
+            std::string mday_a = (timemday_text.substr(0,1).c_str());
+            std::string mday_b = (timemday_text.substr(1,1).c_str());
+            if (tzmon < 10) {
+              mon_b = mon_a;
+              mon_a = "0";
             }
-            if ((tzhr < 22 && tzhr > 12) || (tzhr < 10)) {
-              hour_b = hour_a;
-              hour_a = " ";
+            if (tzmday < 10) {
+              mday_b = mday_a;
+              mday_a = "0";
             }
-            if (tzhr == 0) {
-              hour_a = "1";
-              hour_b = "2";
+            if (id(date_display_mode_us) != 0) {
+              it.print(0, mday_a.c_str());
+              it.print(1, mday_b.c_str());
+              it.print(2, mon_a.c_str());
+              it.print(3, mon_b.c_str());
+            } else {
+              it.print(0, mon_a.c_str());
+              it.print(1, mon_b.c_str());
+              it.print(2, mday_a.c_str());
+              it.print(3, mday_b.c_str());
             }
-            if (tzhr > 11) {
-              if (id(segmentmap) == "GBPEDCAF") {
-                min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
-              }
-              if (id(segmentmap) == "PGFEDCBA") {
-                hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
-              }
+            if (id(date_display_count) >= id(date_display_time)) {
+              id(date_display_time_count) = 0;
             }
           } else {
-            if (tzhr < 10) {
-              hour_b = hour_a;
-              hour_a = "0";
+            id(date_display_count) = 0;
+            // display time
+            if (id(date_display_mode) != 0) {
+              id(date_display_time_count) += 1;
             }
+            int tzhr = tz1time_astm->tm_hour;
+            int tzmin = tz1time_astm->tm_min;
+            std::string timeh_text = std::to_string(tzhr);
+            std::string timem_text = std::to_string(tzmin);
+            std::string hour_a = (timeh_text.substr(0,1).c_str());
+            std::string hour_b = (timeh_text.substr(1,1).c_str());
+            std::string min_a = (timem_text.substr(0,1).c_str());
+            std::string min_b = (timem_text.substr(1,1).c_str());
+            if (tzmin < 10) {
+              min_b = min_a;
+              min_a = "0";
+            }
+            if (id(hour12_mode) == 1) {
+              if (tzhr > 12) {
+                timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
+                hour_a = (timeh_text.substr(0,1).c_str());
+                hour_b = (timeh_text.substr(1,1).c_str());
+              }
+              if ((tzhr < 22 && tzhr > 12) || (tzhr < 10)) {
+                hour_b = hour_a;
+                hour_a = " ";
+              }
+              if (tzhr == 0) {
+                hour_a = "1";
+                hour_b = "2";
+              }
+              if (tzhr > 11) {
+                if (id(segmentmap) == "GBPEDCAF") {
+                  min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
+                }
+                if (id(segmentmap) == "PGFEDCBA") {
+                  hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
+                }
+              }
+            } else {
+              if (tzhr < 10) {
+                hour_b = hour_a;
+                hour_a = "0";
+              }
+            }
+            if (((++blinking & 1) && (id(blink_option) == 1)) || (id(blink_option) == 2)) {
+              if (id(segmentmap) == "GBPEDCAF") {
+                hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
+              }
+              if (id(segmentmap) == "PGFEDCBA") {
+                min_a.append(".");
+                min_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon
+              }
+            }
+            it.print(0, hour_a.c_str());
+            it.print(1, hour_b.c_str());
+            it.print(2, min_a.c_str());
+            it.print(3, min_b.c_str());
           }
-          if (((++blinking & 1) && (id(blink_option) == 1)) || (id(blink_option) == 2)) {
-            if (id(segmentmap) == "GBPEDCAF") {
-              hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
-            }
-            if (id(segmentmap) == "PGFEDCBA") {
-              min_a.append(".");
-              min_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon
-            }
-          }
-          it.print(0, hour_a.c_str());
-          it.print(1, hour_b.c_str());
-          it.print(2, min_a.c_str());
-          it.print(3, min_b.c_str());
         }
       } else {
         it.print("$waiting");
@@ -401,11 +448,15 @@ globals:
      type: int
      restore_value: true
      initial_value: '1'
+   - id: hour12_mode
+     type: bool
+     restore_value: true
+     initial_value: 'false'
    - id: tzoffset
      type: float
      restore_value: true
      initial_value: '0'
-   - id: hour12_mode
+   - id: tzoffset_on
      type: bool
      restore_value: true
      initial_value: 'false'
@@ -465,8 +516,32 @@ globals:
      type: int
      restore_value: true
      initial_value: '1'
+   - id: date_display_mode
+     type: bool
+     restore_value: true
+     initial_value: 'false'
+   - id: date_display_mode_us
+     type: bool
+     restore_value: true
+     initial_value: 'false'
+   - id: date_display_interval
+     type: int
+     restore_value: true
+     initial_value: '12'
+   - id: date_display_time
+     type: int
+     restore_value: true
+     initial_value: '3'
+   - id: date_display_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: date_display_count
+     type: int
+     restore_value: false
+     initial_value: '0'
 
-# Alarms Variables (edit as needed, each alarm requires 3 variables) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 24 lines
+# Alarms Variables (edit as needed, each alarm requires 3 variables) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 25 lines
    - id: alarm1_tune
      type: int
      restore_value: true
@@ -479,6 +554,7 @@ globals:
      type: int
      restore_value: true
      initial_value: '0'
+# Alarm 2 variables (if adding more, copy and paste the next 12 lines, and edit it properly... (ie. alarm2_tune -> alarm3_tune, alarm2_hour -> alarm3_hour, alarm2_min -> alarm3_min, etc.)
    - id: alarm2_tune
      type: int
      restore_value: true
@@ -533,7 +609,7 @@ button:
           id(message_alive_time) = 2;
           id(message_display_time) = 2;
           id(message) = to_string(id(IPAddressD));
-# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 12 lines
+# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 18 lines
   - platform: template
     id: tune1
     name: "Tune 1: Siren"
@@ -570,7 +646,56 @@ switch:
     turn_off_action:
         lambda: |-
           id(hour12_mode) = false;
+  - platform: template
+    name: "$friendly_name Date Display US Mode (DDMM)"
+    id: date_display_mode_us_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(date_display_mode_us)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(date_display_mode_us) = true;
+    turn_off_action:
+        lambda: |-
+          id(date_display_mode_us) = false;
+  - platform: template
+    name: "$friendly_name Home Time Zone Offset On"
+    id: tzoffset_on_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(tzoffset_on)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(tzoffset_on) = true;
+    turn_off_action:
+        lambda: |-
+          id(tzoffset_on) = false;
+  - platform: template
+    name: "$friendly_name Date Display Mode"
+    id: date_mode_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(date_display_mode)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        lambda: |-
+          id(date_display_mode) = true;
+    turn_off_action:
+        lambda: |-
+          id(date_display_mode) = false;
 # Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 22 lines
   - platform: template
     name: "$friendly_name Alarms On"
     id: alarms_select
@@ -594,40 +719,7 @@ switch:
           id(message_display_time) = 2;
           id(message) = ("Aoff");
 
-number:
-  - platform: template
-    name: "$friendly_name Brightness"
-    id: brightness_select
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 8
-    mode: slider
-    set_action:
-      then:
-        lambda: |-
-          id(brightness_level) = x;
-          ESP_LOGD("main", "Brightness: %d", id(brightness_level));
-
 select:
-# This is where your Timezone offsets can be selected. Edit the 'options' as needed.
-  - platform: template
-    name: "$friendly_name Home Time Zone Offset"
-    id: tzoffset_select
-    restore_value: true
-    optimistic: true
-    options:
-      - '0'
-      - '12'
-      - '-3'
-      - '0.5'
-    initial_option: '0'
-    on_value:
-      then:
-        lambda: |-
-          id(tzoffset) = atof(x.c_str());
-          ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
   - platform: template
     name: "$friendly_name Colon Blink (0=Off / 1=On / 2=Always On)"
     id: blink_option_select
@@ -644,250 +736,163 @@ select:
           id(blink_option) = atoi(x.substr(0,2).c_str());
           ESP_LOGD("main", "Colon Blink: %d", id(blink_option));
 
-# Alarms UI Selector  (edit as needed, each alarm requires tune/hour/min selectors) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end
-# Alarm 1 UI Selector Begins
+number:
   - platform: template
-    name: "$friendly_name Alarm 1 Tune"
+    name: "$friendly_name Brightness"
+    id: brightness_select
     restore_value: true
     optimistic: true
-    options: # Make sure this matches how many tunes are available in the button section (the default is 3)
-      - 'Off'
-      - '1'
-      - '2'
-      - '3'
-    initial_option: 'Off'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 8
+    initial_value: 1
+    mode: slider
+    set_action:
       then:
         lambda: |-
-          id(alarm1_tune) = atoi(x.substr(0,2).c_str());
+          id(brightness_level) = x;
+          ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+  - platform: template
+    name: "$friendly_name Date Display Interval"
+    id: date_display_interval_select
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 60
+    initial_value: 8
+    mode: box
+    unit_of_measurement: seconds
+    set_action:
+      then:
+        lambda: |-
+          id(date_display_interval) = x;
+          ESP_LOGD("main", "Date Display Interval: %d", id(date_display_interval));
+  - platform: template
+    name: "$friendly_name Date Display Time"
+    id: date_display_time_select
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 60
+    initial_value: 2
+    mode: box
+    unit_of_measurement: seconds
+    set_action:
+      then:
+        lambda: |-
+          id(date_display_time) = x;
+          ESP_LOGD("main", "Date Display Time: %d", id(date_display_time));
+  - platform: template
+    name: "$friendly_name Home Time Zone Offset"
+    id: tzoffset_select
+    restore_value: true
+    optimistic: true
+    step: 0.25
+    min_value: -26
+    max_value: 26
+    initial_value: 1
+    mode: box
+    unit_of_measurement: hours
+    set_action:
+      then:
+        lambda: |-
+          id(tzoffset) = x;
+          ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
+
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end.
+# Alarms UI Selector (each alarm requires tune/hour/min selectors)
+# Alarm 1 UI Selector Begins
+  - platform: template
+    name: "$friendly_name Alarm 1 Tune (0=Off)"
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 0
+    max_value: 3 # set this to how many alarms you have available
+    initial_value: 0
+    mode: box
+    set_action:
+      then:
+        lambda: |-
+          id(alarm1_tune) = x;
           ESP_LOGD("main", "Alarm 1 Tune: %d", id(alarm1_tune));
   - platform: template
     name: "$friendly_name Alarm 1 Hour"
     restore_value: true
     optimistic: true
-    options:
-      - '00'
-      - '01'
-      - '02'
-      - '03'
-      - '04'
-      - '05'
-      - '06'
-      - '07'
-      - '08'
-      - '09'
-      - '10'
-      - '11'
-      - '12'
-      - '13'
-      - '14'
-      - '15'
-      - '16'
-      - '17'
-      - '18'
-      - '19'
-      - '20'
-      - '21'
-      - '22'
-      - '23'
-    initial_option: '00'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 23
+    initial_value: 0
+    mode: box
+    unit_of_measurement: hours
+    set_action:
       then:
         lambda: |-
-          id(alarm1_hour) = atoi(x.c_str());
-          ESP_LOGD("main", "Alarm 1 hour value is: %d", id(alarm1_hour));
+          id(alarm1_hour) = x;
+          ESP_LOGD("main", "Alarm 1 Hour: %d", id(alarm1_hour));
   - platform: template
     name: "$friendly_name Alarm 1 Minutes"
     restore_value: true
     optimistic: true
-    options:
-      - '00'
-      - '01'
-      - '02'
-      - '03'
-      - '04'
-      - '05'
-      - '06'
-      - '07'
-      - '08'
-      - '09'
-      - '10'
-      - '11'
-      - '12'
-      - '13'
-      - '14'
-      - '15'
-      - '16'
-      - '17'
-      - '18'
-      - '19'
-      - '20'
-      - '21'
-      - '22'
-      - '23'
-      - '24'
-      - '25'
-      - '26'
-      - '27'
-      - '28'
-      - '29'
-      - '30'
-      - '31'
-      - '32'
-      - '33'
-      - '34'
-      - '35'
-      - '36'
-      - '37'
-      - '38'
-      - '39'
-      - '40'
-      - '41'
-      - '42'
-      - '43'
-      - '44'
-      - '45'
-      - '46'
-      - '47'
-      - '48'
-      - '49'
-      - '50'
-      - '51'
-      - '52'
-      - '53'
-      - '54'
-      - '55'
-      - '56'
-      - '57'
-      - '58'
-      - '59'
-    initial_option: '00'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 59
+    initial_value: 0
+    mode: box
+    unit_of_measurement: minutes
+    set_action:
       then:
         lambda: |-
-          id(alarm1_min) = atoi(x.c_str());
-          ESP_LOGD("main", "Alarm 1 minute value is: %d", id(alarm1_min));
+          id(alarm1_min) = x;
+          ESP_LOGD("main", "Alarm 1 Minutes: %d", id(alarm1_min));
 
-# If you require more alarms, copy from the next line to the end and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
+# If you require more alarms, copy from the next line to the end, paste, and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
+# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (up to 3 have been tested)
 # Alarm 2 UI Selector Begins
   - platform: template
-    name: "$friendly_name Alarm 2 Tune"
+    name: "$friendly_name Alarm 2 Tune (0=Off)"
     restore_value: true
     optimistic: true
-    options: # Make sure this matches how many tunes are available in the button section (the default is 3)
-      - 'Off'
-      - '1'
-      - '2'
-      - '3'
-    initial_option: 'Off'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 3 # set this to how many alarms you have available
+    initial_value: 0
+    mode: box
+    set_action:
       then:
         lambda: |-
-          id(alarm2_tune) = atoi(x.substr(0,2).c_str());
+          id(alarm2_tune) = x;
           ESP_LOGD("main", "Alarm 2 Tune: %d", id(alarm2_tune));
   - platform: template
     name: "$friendly_name Alarm 2 Hour"
     restore_value: true
     optimistic: true
-    options:
-      - '00'
-      - '01'
-      - '02'
-      - '03'
-      - '04'
-      - '05'
-      - '06'
-      - '07'
-      - '08'
-      - '09'
-      - '10'
-      - '11'
-      - '12'
-      - '13'
-      - '14'
-      - '15'
-      - '16'
-      - '17'
-      - '18'
-      - '19'
-      - '20'
-      - '21'
-      - '22'
-      - '23'
-    initial_option: '00'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 23
+    initial_value: 0
+    mode: box
+    unit_of_measurement: hours
+    set_action:
       then:
         lambda: |-
-          id(alarm2_hour) = atoi(x.c_str());
-          ESP_LOGD("main", "Alarm 2 hour value is: %d", id(alarm2_hour));
+          id(alarm2_hour) = x;
+          ESP_LOGD("main", "Alarm 2 Hour: %d", id(alarm2_hour));
   - platform: template
     name: "$friendly_name Alarm 2 Minutes"
     restore_value: true
     optimistic: true
-    options:
-      - '00'
-      - '01'
-      - '02'
-      - '03'
-      - '04'
-      - '05'
-      - '06'
-      - '07'
-      - '08'
-      - '09'
-      - '10'
-      - '11'
-      - '12'
-      - '13'
-      - '14'
-      - '15'
-      - '16'
-      - '17'
-      - '18'
-      - '19'
-      - '20'
-      - '21'
-      - '22'
-      - '23'
-      - '24'
-      - '25'
-      - '26'
-      - '27'
-      - '28'
-      - '29'
-      - '30'
-      - '31'
-      - '32'
-      - '33'
-      - '34'
-      - '35'
-      - '36'
-      - '37'
-      - '38'
-      - '39'
-      - '40'
-      - '41'
-      - '42'
-      - '43'
-      - '44'
-      - '45'
-      - '46'
-      - '47'
-      - '48'
-      - '49'
-      - '50'
-      - '51'
-      - '52'
-      - '53'
-      - '54'
-      - '55'
-      - '56'
-      - '57'
-      - '58'
-      - '59'
-    initial_option: '00'
-    on_value:
+    step: 1
+    min_value: 0
+    max_value: 59
+    initial_value: 0
+    mode: box
+    unit_of_measurement: minutes
+    set_action:
       then:
         lambda: |-
-          id(alarm2_min) = atoi(x.c_str());
-          ESP_LOGD("main", "Alarm 2 minute value is: %d", id(alarm2_min));
+          id(alarm2_min) = x;
+          ESP_LOGD("main", "Alarm 2 Minutes: %d", id(alarm2_min));

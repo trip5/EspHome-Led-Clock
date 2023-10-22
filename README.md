@@ -59,19 +59,27 @@ By default, the buttons can be used as such:
 
 | Button  | Short-click Function | Long-press Function (hold for 1 second) |
 | ------- | -------------------- |----------------------------------------- |
-| Up      | Increase brightness  | Toggle alarms on/off |
-| Down    | Decrease brightness | Change timezone offset |
+| Up      | Increase brightness  | Toggle alarms on/off (only on XY-Clock) |
+| Down    | Decrease brightness | Toggle Time Zone Offset on/off |
 | Set     | Toggle 12/24-hour mode | Show the clock's IP address |
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML.
 
 ### Time Zones
 
-It's up to you how to handle time zones. I prefer to keep my home time zone (Korea) as the one I live in and use the offset option according to the time difference with Korea.
-The offsets I include are mostly for demonstration purposes.  You can use positive or negative values and decimal places in your choices (ie. 2, -2, 1.5).
+It's up to you how to handle time zones. I prefer to keep my home time zone (Korea) as the one I live in and use the offset option according to the time difference of with Korea.
+You can set an offset with a number that is a positive or negative value with decimal places (ie. 2, -2, 12.5).
 
-You could set your home time zone to GMT and make the default offset match your home.  I haven't really experimented with this way so your mileage may vary,
+You could also set your time zone to GMT and make the default offset match your home.  I haven't really experimented with this way so your mileage may vary,
 especially if you live in an area that uses Daylight Savings Time.
+
+I have allowed steps of 0.25 (equal to 15 minutes) but I notice ESPHome does not enforce those steps. It is possible to set an offset like 0.01 (which would be 36 seconds).
+Be careful.
+
+### Date Display
+
+This clock can display the date at configurable intervals.  The display interval checks how long the clock was displayed for and then displays the date for the specified time
+(in seconds).  Keep in mind that displaying the message from the Home Assistant integration will not interrupt this count, so I recommend choosing sane and even numbers.
 
 ## Integration with Home Assistant
 
