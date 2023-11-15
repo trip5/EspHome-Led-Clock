@@ -8,6 +8,8 @@ Using either clock requires the TM1650 display to be supported by an external co
 
 For now, the file [`EHLClock.yaml`](EHLClock.yaml) contains the full YAML code, including a lengthy lambda that makes it all work.  At some point, I may turn this into a custom component for ESPHome... but for now, you'll just to have carefully edit the YAML to suit your needs.  Or if you have a 303 clock, you can download [`EHLClock303.yaml`](EHLClock303.yaml) which is a pre-edited version of the main YAML.
 
+#### Note: ESPHome must be version 2023.11.0 or higher!
+
 ## Sinilink XY-Clock
 
 ![image](./images/sinilink_XY-Clock.jpg)
@@ -40,7 +42,7 @@ This is ESPHome, so it's not pretty but very functional.  You should set your wi
 I have included functionality for 2 alarms for now but you can likely increase that number.  You can also edit the tunes available to the clock by editing the RTTTL code
 (see below for some useful links).
 
-If using this device on a network outside your usual, ESPHome will, after 30 seconds, give up trying to connect to its "home" network and enter AP mode.
+If using this device on a network outside your usual, ESPHome will, after 10 seconds (set by the YAML), give up trying to connect to its "home" network and enter AP mode.
 You should then connect to the hotspot (with a mobile phone) and then go to 192.168.4.1 in a browser to select which local wifi network you would like it to connect to.
 The clock will display its IP address on boot and also by holding down the set button for more than 1 second. When returning home, you will have to go through this process again.
 Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (it doesn't by default anyways).
@@ -49,7 +51,7 @@ There does appear to be some errors with "Component preferences took a long time
 
 ### Screenshot
 
-Ideally, this would look a lot prettier than it does but there's not a lot I can with the default ESPHome WebUI.
+Ideally, this would look a lot prettier than it does but there's not a lot I can with the default ESPHome WebUI.  The alarms take up a lot.
 
 ![image](./images/EHLC_Screenshot.png)
 
@@ -57,13 +59,23 @@ Ideally, this would look a lot prettier than it does but there's not a lot I can
 
 By default, the buttons can be used as such:
 
-| Button  | Short-click Function | Long-press Function (hold for 1 second) |
-| ------- | -------------------- |----------------------------------------- |
-| Up      | Increase brightness  | Toggle alarms on/off (only on XY-Clock) |
-| Down    | Decrease brightness | Toggle Time Zone Offset on/off |
-| Set     | Toggle 12/24-hour mode | Show the clock's IP address |
+| Button  | Short-click Function | Long-press Function (hold for 1 second) | Very Long-press Function (hold 5s) |
+| ------- | -------------------- |---------------------------------------- | --------------------------------------------- |
+| Up      | Increase brightness  | Toggle all alarms on/off (only on XY-Clock) | |
+| Down    | Decrease brightness | Toggle Time Zone Offset on/off | |
+| Set     | Toggle 12/24-hour mode | Show the clock's IP address (or other wifi status) | Toggle the Wifi Stop Seek (see below) |
 
-Of course, this is ESPHome, so you can change the button functions by editing the YAML.
+Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
+
+### Date Display
+
+The clock can display the date at configurable intervals.
+The display interval checks how long the clock was displayed for and then displays the date for the specified time (in seconds).
+Keep in mind that displaying the message from the Home Assistant integration will not interrupt this count, so I recommend choosing sane and even numbers.
+
+### Time Sync
+
+Time can be synced to the Internet at configurable intervals between 1 - 24 hours, provided the wifi network is connected.
 
 ### Time Zones
 
@@ -76,10 +88,38 @@ especially if you live in an area that uses Daylight Savings Time.
 I have allowed steps of 0.25 (equal to 15 minutes) but I notice ESPHome does not enforce those steps. It is possible to set an offset like 0.01 (which would be 36 seconds).
 Be careful.
 
-### Date Display
+### Wifi Stop Seek
 
-This clock can display the date at configurable intervals.  The display interval checks how long the clock was displayed for and then displays the date for the specified time
-(in seconds).  Keep in mind that displaying the message from the Home Assistant integration will not interrupt this count, so I recommend choosing sane and even numbers.
+This is disabled by default but by turning it on, the clock will disable its wifi radio after a configurable time if the network connection is dropped.
+Note that this does not turn wifi off if connected, it's merely a timeout for when the configured wifi connection cannot be made. 
+This is meant as a power-saving feature in the event of a power blackout.
+
+Under normal conditions, when an ESPHome device loses wifi connectivity, it will continuously seek out a wifi connection or activate a hotspot to allow configuring a wifi connection.
+While in this non-connected state, the clock will use more power than usual. If you have a coin-cell battery that maintains the RTC during a blackout,
+you could re-connect the clock to a powerbank or some other power source and it will continue to function.
+
+Please note that this also means that the clock will not try to connect to wifi again (this will be indicated on the screen as "Wifi Off" when long-pressing the button),
+unless you reset the power, which just means unplugging it and plugging it back in again.
+
+Do not set this time too short.  I have allowed 60 seconds minimum in the options but this could mean your clock stops trying to connect to wifi just because
+your router rebooted or the wifi was a bit sketchy. The default is 120 seconds which I think is enough time for even the slowest router to reboot, but it's your choice.
+Also keep in mind that this time will affect how long the configuration hotspot is available for.
+The hotspot will activate after 10 seconds (lowered from 60 seconds which is ESPHome default).
+
+You can enable or disable this mode by holding the button for 5 seconds to toggle the function. The wifi will be turned on again if it has been turned off.
+
+#### Power Consumption (measured with XY-Clock Blue, 2023.11.16 Version)
+
+| Status / Mode           | Power usage (24 hours) |
+| ----------------------- | ---------------------- |
+| Connected               | 2500 mAh               |
+| Stop Seek Off & No Wifi | 2800 mAh               |
+| Stop Seek On & Wifi Off | 750 mAh                |
+
+### LED Output
+
+While the clock is connecting to wifi or while in hotspot mode, the blue LED will pulse on and off. In regular mode, the LED will turn on or off will be every 1 second.
+If Stop Seek is enabled, the led will pulse on or off every 2 seconds. If connected to Wifi or Stop Seek (as above) is active, the LED will turn off completely.
 
 ## Integration with Home Assistant
 
@@ -90,6 +130,18 @@ This example will send a message that will display for 3 seconds before revertin
 ![image](./images/EHLC_Home_Assistant_tune.png)
 
 The Sinilink Clock has a piezo speaker, so this service can play a Nokia-style tune through the piezo speaker. I recommend just doing a search for "RTTTL" and the name of the song you would like.  If you really want a lot, check out: https://picaxe.com/rtttl-ringtones-for-tune-command/
+
+## Update History
+
+| Date       | Release Notes    |
+| ---------- | ---------------- |
+| 2023.11.16 | Wifi Stop Seek, improved status messages |
+| 2023.10.22 | Show date on intervals |
+| 2023.10.04 | Colon blink configurable |
+| 2023.08.27 | Time zone offset added |
+| 2023.08.26 | Alarms, IP display |
+| 2023.08.19 | 303 Clock support added |
+| 2023.06.29 | Sinilink XY-Clock: Basic functionality, HA integration |
 
 ## Useful Links
 

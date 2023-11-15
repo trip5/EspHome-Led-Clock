@@ -1,29 +1,32 @@
 substitutions:
   name: 303-clock
   friendly_name: 303-Clock
+  comment: "EHLClock from Trip5"
+  project_version: "2023.11.16"
+  project_name: Trip5.EspHomeLedClock
   waiting: "ehLC" # shows when waiting for time
-  time_zone: "Asia/Seoul" # This will be your 'home' Timezone. Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  # Time zone can be Olsen type ("Asia/Seoul") # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  # Or it can be POSIX format: ("PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00") - most can be viewed here: https://gist.github.com/alwynallan/24d96091655391107939
+  # Read more about how to customize a POSIX format here: https://developer.ibm.com/articles/au-aix-posix/
+  time_zone: "KST-9"
+
 # SCL & SDA are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
   sda_pin: GPIO13
-
-# Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
   segment_mapping: GBPEDCAF # Specific to 303WIFILC01
-
 # 303 Clock uses these pins for buttons
   down_button_pin: GPIO15
   up_button_pin: GPIO4
   set_button_pin: GPIO0
-
-# Sinilink and 303 both have a Red LED (Same GPIO)
-  red_led_pin: GPIO2
+# The 303 only has 1 LED (uncomment next line and delete the above 4 lines)
+  status_led_pin: GPIO2
 
 esphome:
   name: $name
-  comment: "EHLClock from Trip5"
+  comment: "$comment"
   project:
-    name: "Trip5.EspHomeLedClock"
-    version: "2023.10.22"
+    name: "$project_name"
+    version: "$project_version"
   on_boot:
     then:
       - globals.set:
@@ -37,12 +40,34 @@ esp8266:
   restore_from_flash: True
   
 wifi:
-  networks:
-  - ssid: !secret wifi_ssid
-    password: !secret wifi_password
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s # reboot if no wifi (must be disabled for wifi to be turned off)
+  enable_on_boot: True
+  id: wifi_id
   ap:
     ssid: $name
     password: !secret ap_password
+    ap_timeout: 10s # this has to be short, especially if using Stop Seek Wifi
+  on_connect:
+    - logger.log: "Wifi connected"
+    - light.turn_off: led1
+    - delay: 1s
+    - button.press: display_ip
+    - lambda: |-
+        id(wifi_stop_seek_time_count) = 0;
+        id(my_time)->update();
+  on_disconnect:
+    - if:
+        condition:
+          lambda: |-
+            return (id(wifi_stop_seek) ==  1);
+        then:
+          - logger.log: "Wifi disconnected - will be disabled soon (stop seek is on)..."
+        else:
+          - logger.log: "Wifi disconnected"
+    - delay: 1s
+    - button.press: display_ip
 
 external_components:
 # Use Trip5's fork of Buzzer13's TM1650 ESPHome Component
@@ -52,11 +77,6 @@ external_components:
       ref: main
     refresh: 60s
     components: [ tm1650 ]
-# Prefer a local source (only use one source)
-#  - source:
-#      type: local
-#      path: my-components/EHCL-Clock # e.g. /config/esphome/components
-#    components: [ tm1650 ]
 
 # The 303 Clock has a DS1302 RTC (uncomment this section to use it), use Trip5's fork of Trombik's DS1302 ESPHome Component
   - source:
@@ -68,19 +88,17 @@ external_components:
 
 time:
   - platform: sntp
+    id: my_time
 # If you would rather use Home Assistant as a time source, delete the above line and uncomment the next line (but sntp means you can take your clock anywhere)
 #  - platform: homeassistant
     timezone: "$time_zone"
-    update_interval: 8h
-#    id: my_time # one platform must contain id: my_time (so if you don't have an RTC or delete all references to the RTC, uncomment this line)
+    update_interval: 24h # This seems like the longest safe amount of time - actual configured update interval happens under Display
     on_time_sync:
       then:
-# The 303 Clock uses a DS1302 RTC
+# The 303 Clock uses a DS1302 RTC (uncomment this and delete the other if needed)
         ds1302.write_time:
-
-# The 303 Clock uses a DS1302 RTC
+# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above DS1307 section if needed)
   - platform: ds1302
-    id: my_time
     cs_pin: GPIO5
     dio_pin: GPIO14
     clk_pin: GPIO16
@@ -89,6 +107,7 @@ time:
 
 # The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section
 api:
+  reboot_timeout: 0s # Must be disabled to allow the Wifi enable/disable to function
   services:
 # This next section creates the Home Assistant services to allow messages to be displayed
     - service: message
@@ -140,21 +159,38 @@ captive_portal:
 
 text_sensor:
   - platform: version
-    name: "ESPHome Version"
+    name: "$friendly_name ESPHome Version"
     hide_timestamp: true
-    internal: true
+    entity_category: diagnostic
   - platform: wifi_info
     ip_address:
       id: wifi_ip
       name: "$friendly_name IP Address"
+      entity_category: diagnostic
     ssid:
       id: wifi_ssid
       name: "$friendly_name SSID"
+      entity_category: diagnostic
+  - platform: template
+    name: "$friendly_name $project_name Version"
+    lambda: |-
+      return {"$project_version"};
+    entity_category: diagnostic
+    update_interval: never
 
-status_led:
-  pin:
-    number: $red_led_pin
-    inverted: true
+output:
+  - platform: esp8266_pwm
+    id: statusled
+    pin:
+      number: $status_led_pin
+      inverted: true
+
+light:
+  - platform: monochromatic
+    id: led1
+    name: "LED"
+    output: statusled
+    internal: true
 
 preferences:
   flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended) (only saves when persistent variables have changed)
@@ -189,7 +225,7 @@ binary_sensor:
   - platform: gpio
     pin:
       number: $down_button_pin
-      inverted: false # Sinilink true / 303 false
+      inverted: true # Sinilink true / 303 false
       mode: INPUT_PULLUP
     name: "$friendly_name Down button"
     filters:
@@ -222,11 +258,16 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - switch.toggle: hour12_select
-      #Hold SET will show the IP Address
+      #Hold SET 1s will show the IP Address
       - timing:
           - ON for at least 1s
         then:
           - button.press: display_ip
+      #Hold SET 5s will toggle the wifi timeout
+      - timing:
+          - ON for at least 5s
+        then:
+          - switch.toggle: wifi_stop_seek_select
 
 # This section contains a lot of lambda code... if using the Sinilink or 303, you shouldn't have to edit this at all
 # If using something else, you may need to edit the segmentmap sections (conveniently 'if' sections), depending on how the decimals/colons are handled
@@ -367,7 +408,49 @@ display:
       }
       id(disp_tm1650)->set_intensity(id(brightness_level));
 
-# Example configuration entry
+interval:
+  - interval: 1min # check if the time should be synced, and if so, do it
+    then:
+      lambda: |-
+        id(sync_time_count) += 1;
+        if (id(sync_time_count) >= (id(sync_time) * 60)) {
+          id(sync_time_count) = 0;
+          if (id(wifi_id).is_connected()) {
+            id(my_time)->update();
+          }
+        }
+  - interval: 1s # check if the wifi should be turned off, and if so, do it (or turn on if stop seek has been disabled) and blink led while seeking wifi
+    then:
+      - lambda: |-
+          if (id(wifi_stop_seek) == 1 && !id(wifi_id).is_connected() && !id(wifi_id).is_disabled()){
+            id(wifi_stop_seek_time_count) += 1;
+            if (id(wifi_stop_seek_time_count) >= id(wifi_stop_seek_time)) {
+              id(wifi_stop_seek_time_count) = 0;
+              id(led1).turn_off();
+              id(wifi_id)->disable();
+              id(display_ip).press();
+            }
+          } else {
+            if (id(wifi_stop_seek) == 0 && id(wifi_id).is_disabled()) {
+              id(wifi_stop_seek_time_count) = 0;
+              id(wifi_id)->enable();
+              id(display_ip).press();
+            }
+          }
+          static int blinkled = 0;
+          if (!id(wifi_id).is_connected() && !id(wifi_id).is_disabled()) {
+            if (id(wifi_stop_seek) == 0) {
+              auto call = id(led1).toggle();
+              call.perform();
+              //id(led1).toggle();
+            } else {
+              if (++blinkled & 1) {
+                auto call = id(led1).toggle();
+                call.perform();
+              }
+            }
+          }
+
 globals:
    - id: brightness_level
      type: int
@@ -465,6 +548,26 @@ globals:
      type: int
      restore_value: false
      initial_value: '0'
+   - id: sync_time
+     type: int
+     restore_value: true
+     initial_value: '8'
+   - id: sync_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
+   - id: wifi_stop_seek
+     type: bool
+     restore_value: true
+     initial_value: 'false'
+   - id: wifi_stop_seek_time
+     type: int
+     restore_value: true
+     initial_value: '180'
+   - id: wifi_stop_seek_time_count
+     type: int
+     restore_value: false
+     initial_value: '0'
 
 button:
   - platform: restart
@@ -475,38 +578,53 @@ button:
     name: "Display IP Address"
     internal: true
     on_press:
-      - lambda: |-
-          // int IPA[3], IPB[3], IPC[3], IPD[3];
-          int IPA, IPB, IPC, IPD;
-          sscanf((id(wifi_ip).state.c_str()), "%d.%d.%d.%d", &IPA, &IPB, &IPC, &IPD);
-          id(IPAddressA) = IPA;
-          id(IPAddressB) = IPB;
-          id(IPAddressC) = IPC;
-          id(IPAddressD) = IPD;
-          id(message_alive_time) = 2;
-          id(message_display_time) = 2;
-          id(message_clock_time) = 0;
-          id(message) = "IP";
-      - delay: 2s
-      - lambda: |-
-          id(message_alive_time) = 2;
-          id(message_display_time) = 2;
-          id(message) = to_string(id(IPAddressA));
-      - delay: 2s
-      - lambda: |-
-          id(message_alive_time) = 2;
-          id(message_display_time) = 2;
-          id(message) = to_string(id(IPAddressB));
-      - delay: 2s
-      - lambda: |-
-          id(message_alive_time) = 2;
-          id(message_display_time) = 2;
-          id(message) = to_string(id(IPAddressC));
-      - delay: 2s
-      - lambda: |-
-          id(message_alive_time) = 2;
-          id(message_display_time) = 2;
-          id(message) = to_string(id(IPAddressD));
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+            - lambda: |-
+                if (id(wifi_id).is_disabled()) {
+                  id(message) = ("Off");
+                } else {
+                  id(message) = ("noIP");
+                }
+                id(message_alive_time) = 3;
+                id(message_display_time) = 3;
+                id(message_clock_time) = 0;
+          else:
+            - lambda: |-
+                // int IPA[3], IPB[3], IPC[3], IPD[3];
+                int IPA, IPB, IPC, IPD;
+                sscanf((id(wifi_ip).state.c_str()), "%d.%d.%d.%d", &IPA, &IPB, &IPC, &IPD);
+                id(IPAddressA) = IPA;
+                id(IPAddressB) = IPB;
+                id(IPAddressC) = IPC;
+                id(IPAddressD) = IPD;
+                id(message_alive_time) = 2;
+                id(message_display_time) = 2;
+                id(message_clock_time) = 0;
+                id(message) = "IP";
+            - delay: 2s
+            - lambda: |-
+                id(message_alive_time) = 2;
+                id(message_display_time) = 2;
+                id(message) = to_string(id(IPAddressA));
+            - delay: 2s
+            - lambda: |-
+                id(message_alive_time) = 2;
+                id(message_display_time) = 2;
+                id(message) = to_string(id(IPAddressB));
+            - delay: 2s
+            - lambda: |-
+                id(message_alive_time) = 2;
+                id(message_display_time) = 2;
+                id(message) = to_string(id(IPAddressC));
+            - delay: 2s
+            - lambda: |-
+                id(message_alive_time) = 2;
+                id(message_display_time) = 2;
+                id(message) = to_string(id(IPAddressD));
 
 switch:
   - platform: template
@@ -542,7 +660,7 @@ switch:
         lambda: |-
           id(date_display_mode_us) = false;
   - platform: template
-    name: "$friendly_name Home Time Zone Offset On"
+    name: "$friendly_name Time Zone Offset On"
     id: tzoffset_on_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
@@ -568,11 +686,45 @@ switch:
         return false;
       }
     turn_on_action:
-        lambda: |-
-          id(date_display_mode) = true;
+        - lambda: |-
+            id(date_display_mode) = true;
+            id(message) = ("dton");
+            id(message_alive_time) = 1;
+            id(message_display_time) = 1;
+            id(message_clock_time) = 0;
     turn_off_action:
-        lambda: |-
-          id(date_display_mode) = false;
+        - lambda: |-
+            id(date_display_mode) = false;
+            id(message) = ("doff");
+            id(message_alive_time) = 1;
+            id(message_display_time) = 1;
+            id(message_clock_time) = 0;
+  - platform: template
+    name: "$friendly_name Wifi Stop Seek"
+    id: wifi_stop_seek_select
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      if (id(wifi_stop_seek)) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+        - delay: 1s
+        - lambda: |-
+            id(wifi_stop_seek) = true;
+            id(message) = ("stop");
+            id(message_alive_time) = 1;
+            id(message_display_time) = 1;
+            id(message_clock_time) = 0;
+    turn_off_action:
+        - delay: 1s
+        - lambda: |-
+            id(wifi_stop_seek) = false;
+            id(message) = ("seeH");
+            id(message_alive_time) = 1;
+            id(message_display_time) = 1;
+            id(message_clock_time) = 0;
 
 select:
   - platform: template
@@ -640,7 +792,7 @@ number:
           id(date_display_time) = x;
           ESP_LOGD("main", "Date Display Time: %d", id(date_display_time));
   - platform: template
-    name: "$friendly_name Home Time Zone Offset"
+    name: "$friendly_name Time Zone Offset"
     id: tzoffset_select
     restore_value: true
     optimistic: true
@@ -655,3 +807,31 @@ number:
         lambda: |-
           id(tzoffset) = x;
           ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
+  - platform: template
+    name: "$friendly_name Time Sync Interval (hours)"
+    id: sync_time_select
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 24
+    mode: box
+    set_action:
+      then:
+        lambda: |-
+          id(sync_time) = x;
+          ESP_LOGD("main", "Time Sync Interval (hours): %d", id(sync_time));
+  - platform: template
+    name: "$friendly_name Wifi Stop Seek Time (seconds)"
+    id: wifi_stop_seek_time_select
+    restore_value: true
+    optimistic: true
+    step: 5
+    min_value: 60
+    max_value: 300
+    mode: box
+    set_action:
+      then:
+        lambda: |-
+          id(sync_time) = x;
+          ESP_LOGD("main", "Wifi Stop Seek Time (seconds): %d", id(wifi_stop_seek_time));
