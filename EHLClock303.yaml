@@ -27,7 +27,7 @@ esphome:
   project:
     name: "$project_name"
     version: "$project_version"
-  min_version: 2023.11.0
+  min_version: 2023.12.0
   on_boot:
     then:
       - globals.set:

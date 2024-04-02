@@ -8,7 +8,7 @@ Using either clock requires the TM1650 display to be supported by an external co
 
 For now, the file [`EHLClock.yaml`](EHLClock.yaml) contains the full YAML code, including a lengthy lambda that makes it all work.  At some point, I may turn this into a custom component for ESPHome... but for now, you'll just to have carefully edit the YAML to suit your needs.  Or if you have a 303 clock, you can download [`EHLClock303.yaml`](EHLClock303.yaml) which is a pre-edited version of the main YAML.
 
-#### Note: ESPHome must be version 2023.11.0 or higher!
+#### Note: ESPHome must be version 2023.12.0 or higher!
 
 ## Sinilink XY-Clock
 
