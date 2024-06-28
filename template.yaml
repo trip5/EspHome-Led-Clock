@@ -1,0 +1,31 @@
+# Choose which sensor type(s) - this first one is simple and relies only on simple sensors or derivative sensors
+
+- sensor:
+    - name: LED PixelClock Data
+      unique_id: led_pixelclock_data
+      state: "OK"
+      attributes:
+        # The numbered attributes (0 to 9) are info screens
+        0: "{{ states('sensor.room_temperature') | round(1) | default('NA-') }}C"
+
+# This style is for a sensor that relies on at least one service call (ie. for weather) - you can still use simple/derivative sensors
+
+- trigger:
+    - platform: time_pattern
+      minutes: /5
+  action:
+    - service: weather.get_forecasts
+      data:
+        type: hourly
+      target:
+        entity_id: weather.openweathermap_hourly
+      response_variable: hourly
+  sensor:
+    - name: LED Clock Data
+      unique_id: led_clock_data
+      state: "OK"
+      attributes:
+        # The numbered attributes (0 to 9) are info screens
+        0: >
+          to{{ hourly["weather.openweathermap_hourly"].forecast[0].temperature | round(0) | default('NA') }}
+        1: "ti{{ states('sensor.room_temperature') | round(0) | default('NA') }}"

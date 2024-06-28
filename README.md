@@ -6,7 +6,7 @@ A lot of inspiration is taken from the [`EHMTXv2`](https://github.com/lubeda/Esp
 
 Using either clock requires the TM1650 display to be supported by an external component - at least until ESPHome has native support. The 303WifiLC01 Clock also requires an external component to support its RTC chip. The default config is to use my own forks of other repositories (which I link to below).
 
-For now, the file [`EHLClock.yaml`](EHLClock.yaml) contains the full YAML code, including a lengthy lambda that makes it all work.  At some point, I may turn this into a custom component for ESPHome... but for now, you'll just to have carefully edit the YAML to suit your needs.  Or if you have a 303 clock, you can download [`EHLClock303.yaml`](EHLClock303.yaml) which is a pre-edited version of the main YAML.
+For now, the file [`EHLClock.yaml`](EHLClock.yaml) contains the full YAML code, including a lengthy lambda that makes it all work.  At some point, I may turn this into a custom component for ESPHome... but for now, you'll just to have carefully edit the YAML to suit your needs.  There are especially a lot of removals needed to make the 303 Clock work correctly.
 
 #### Note: ESPHome must be version 2023.12.0 or higher!
 
@@ -55,35 +55,32 @@ Ideally, this would look a lot prettier than it does but there's not a lot I can
 
 ![image](./images/EHLC_Screenshot.png)
 
-### Button Functions
-
-By default, the buttons can be used as such:
-
-| Button  | Short-click Function | Long-press Function (hold for 1 second) | Very Long-press Function (hold 5s) |
-| ------- | -------------------- |---------------------------------------- | --------------------------------------------- |
-| Up      | Increase brightness  | Toggle all alarms on/off (only on XY-Clock) | |
-| Down    | Decrease brightness | Toggle Time Zone Offset on/off | |
-| Set     | Toggle 12/24-hour mode | Show the clock's IP address (or other wifi status) | Toggle the Wifi Stop Seek (see below) |
-
-Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
-
 ### Date Display
 
 The clock can display the date at configurable intervals.
 The display interval checks how long the clock was displayed for and then displays the date for the specified time (in seconds).
 Keep in mind that displaying the message from the Home Assistant integration will not interrupt this count, so I recommend choosing sane and even numbers.
 
+### Alarms
+
+The clock can play the date at configurable intervals.  The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune.
+
+I recommend just doing a search for "RTTTL" and the name of the song you would like.  If you really want a lot, check out: https://picaxe.com/rtttl-ringtones-for-tune-command/
+
 ### Time Sync
 
 Time can be synced to the Internet at configurable intervals between 1 - 24 hours, provided the wifi network is connected.
 
-### Time Zones
+## Non-HA Version
 
-It's up to you how to handle time zones. I prefer to keep my home time zone (Korea) as the one I live in and use the offset option according to the time difference of with Korea.
+The file [`EHLClock.yaml`](EHLClock.yaml) contains functions useful for using the clock as... mostly just a clock but with some power-saving functions.
+It includes all of the functions above as well as these below.  This version has a WebUI which can be accessed via it's IP after connecting the clock to Wifi.
+So if you need a travel clock, this may be the ideal one for you.  It can still be controlled by Home Assistant as well but is not dependent on it to function.
+
+### Time Zone Offset
+
+It's up to you how to handle time offset.  It will affect the main time zone as well as the alternate time zone
 You can set an offset with a number that is a positive or negative value with decimal places (ie. 2, -2, 12.5).
-
-You could also set your time zone to GMT and make the default offset match your home.  I haven't really experimented with this way so your mileage may vary,
-especially if you live in an area that uses Daylight Savings Time.
 
 I have allowed steps of 0.25 (equal to 15 minutes) but I notice ESPHome does not enforce those steps. It is possible to set an offset like 0.01 (which would be 36 seconds).
 Be careful.
@@ -121,7 +118,38 @@ You can enable or disable this mode by holding the button for 5 seconds to toggl
 While the clock is connecting to wifi or while in hotspot mode, the blue LED will pulse on and off. In regular mode, the LED will turn on or off will be every 1 second.
 If Stop Seek is enabled, the led will pulse on or off every 2 seconds. If connected to Wifi or Stop Seek (as above) is active, the LED will turn off completely.
 
-## Integration with Home Assistant
+### Button Functions
+
+By default, the buttons can be used as such:
+
+| Button  | Short-click Function | Long-press Function (hold for 1 second) | Very Long-press Function (hold 5s) |
+| ------- | -------------------- |---------------------------------------- | --------------------------------------------- |
+| Up      | Increase brightness  | Toggle all alarms on/off (only on XY-Clock) | |
+| Down    | Decrease brightness | Toggle Time Zone Offset on/off | |
+| Set     | Toggle 12/24-hour mode | Show the clock's IP address (or other wifi status) | Toggle the Wifi Stop Seek (see below) |
+
+Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
+
+## Home Assistant Version
+
+The file [`EHLClock-HA.yaml`](EHLClock-HA.yaml) contains functions useful for using the clock with Home Assistant.
+It does not include the WebUI, Time Zone Offset, or Wifi Stop Seek but it does includes all of the functions below.
+
+### Alternate Time Zone
+
+This option is to allow displaying a Time Zone other than your "home" time zone.  It can be activated permanently.
+
+Please note that the time zones MUST be in POSIX format instead of the usual Olsen type (`Asia/Seoul`).
+
+POSIX formats look like: `KST-9` or `PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00` or `AST4ADT,M3.2.0,M11.1.0`.
+
+They include daylight savings and time-switches in the formatting. So, there is no reliance on the ESPHome Olsen database to be current.
+You can view a lot of the time zones in the world in POSIX format [`here`](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv) or
+[`here`](https://support.cyberdata.net/portal/en/kb/articles/010d63c0cfce3676151e1f2d5442e311).
+If you need to make a custom POSIX format you can look [`here`](https://developer.ibm.com/articles/au-aix-posix/) or even better, use this
+[`POSIX Generator`](https://www.topyuan.top/posix) courtesy of TopYuan.
+
+### Service Calls
 
 ![image](./images/EHLC_Home_Assistant_message.png)
 
@@ -129,12 +157,41 @@ This example will send a message that will display for 3 seconds before revertin
 
 ![image](./images/EHLC_Home_Assistant_tune.png)
 
-The Sinilink Clock has a piezo speaker, so this service can play a Nokia-style tune through the piezo speaker. I recommend just doing a search for "RTTTL" and the name of the song you would like.  If you really want a lot, check out: https://picaxe.com/rtttl-ringtones-for-tune-command/
+This service is just for the Sinilink Clock.  See above and below for more info about RTTTL music.
+
+### Template Sensors
+
+This will allow the clock to display information screens, following a single interval of clock and date screens.  You can display all screens at once or one per interval.
+They are all treated as sensors, similarly as my [ESPHome-eInk-Boards](https://github.com/trip5/ESPHome-eInk-Boards) projects.
+
+Put something like this in your `configuration.yaml`:
+
+```
+template: !include template.yaml
+```
+
+Anything in `configuration.yaml` under the `template:` heading must now be moved to `template.yaml`. Take a quick look [here](https://community.home-assistant.io/t/how-do-i-setup-template-trigger-sensor-in-a-splitting-config/718626/) for some examples on an easy way to format `template.yaml`.
+
+The file [`template.yaml`](template.yaml) contains several examples how to add sensors that can be automatically shown by the clock.
+I personally use only one sensor in my Home Assistant and 2 clocks in the house get data from the same sensor but you can (of course) create a sensor for each  individual clock.
+
+### Button Functions
+
+By default, the buttons can be used as such:
+
+| Button  | Short-click Function | Long-press Function (hold for 1 second) | Very Long-press Function (hold 5s) |
+| ------- | -------------------- |---------------------------------------- | --------------------------------------------- |
+| Up      | Increase brightness  | Toggle all alarms on/off (only on XY-Clock) | |
+| Down    | Decrease brightness | Toggle Alt Time Zone | |
+| Set     | Toggle 12/24-hour mode | Toggle HA Sensors Data Stop | Toggle HA Sensors Data All |
+
+Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
 
 ## Update History
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2024.06.29 | Added Home Assistant version, major changes to main version, fixed time sync error |
 | 2023.11.16 | Wifi Stop Seek, improved status messages |
 | 2023.10.22 | Show date on intervals |
 | 2023.10.04 | Colon blink configurable |
@@ -142,6 +199,7 @@ The Sinilink Clock has a piezo speaker, so this service can play a Nokia-style t
 | 2023.08.26 | Alarms, IP display |
 | 2023.08.19 | 303 Clock support added |
 | 2023.06.29 | Sinilink XY-Clock: Basic functionality, HA integration |
+
 
 ## Useful Links
 
@@ -151,16 +209,23 @@ Tasmota Template for the Sinilink XY-Clock: https://templates.blakadder.com/XY-C
 
 Maarten Penning's fantastic repository regarding the 303WIFILC01: https://github.com/maarten-pennings/303WIFILC01/tree/main
 
-Buzzer13's TM1650 ESPHome component: https://github.com/buzzer13/esphome-components
-
-Trombik's ESPHome Component for the DS1302 RTC (used on the 303): https://github.com/trombik/esphome-component-ds1302
-
 About outputting to the Display: https://esphome.io/components/display/tm1637.html?highlight=tm1637
-
-What characters can be displayed: https://esphome.io/components/display/max7219.html#display-max7219-characters
 
 ESPHome's Display: https://esphome.io/components/display/index.html
 
 About the Rtttl Buzzer: https://esphome.io/components/rtttl.html
 
+Some RTTTL tunes: https://picaxe.com/rtttl-ringtones-for-tune-command/
+
+#### TM1650 Display
+
+Buzzer13's TM1650 ESPHome component: https://github.com/buzzer13/esphome-components
+
+My fork (which includes a highly modified font): https://github.com/trip5/esphome-tm1650
+
+#### DS1302 RTC
+
+Trombik's ESPHome Component for the DS1302 RTC (used on the 303): https://github.com/trombik/esphome-component-ds1302
+
+My fork (probably the same): https://github.com/trip5/esphome-ds1302
 
