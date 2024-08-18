@@ -867,11 +867,7 @@ switch:
     id: hour12_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(hour12_mode)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(hour12_mode);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "12 Hour Mode On");
@@ -885,11 +881,7 @@ switch:
     id: date_display_mode_us_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(date_display_mode_us)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(date_display_mode_us);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "Date Display US Mode On");
@@ -903,11 +895,7 @@ switch:
     id: date_mode_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(date_display_mode)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(date_display_mode);
     turn_on_action:
         - logger.log: "Date Display Mode On"
         - lambda: |-
@@ -929,11 +917,7 @@ switch:
     id: ha_sensor_data_all_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(ha_sensor_data_all)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(ha_sensor_data_all);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "HA Sensors Data All On");
@@ -947,11 +931,7 @@ switch:
     id: ha_sensor_data_stop_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(ha_sensor_data_stop)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(ha_sensor_data_stop);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "HA Sensors Data Stop On");
@@ -966,11 +946,7 @@ switch:
     id: tz_alt_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(tz_alt)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(tz_alt);
     turn_on_action:
         - delay: 1s
         - logger.log: "Alt Time Zone on: $time_zone_alt_name"
@@ -1003,11 +979,7 @@ switch:
     id: alarms_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(alarms_on)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(alarms_on);
     turn_on_action:
         - logger.log: "Alarms On"
         - lambda: |-

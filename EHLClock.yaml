@@ -1,4 +1,5 @@
 # My github: https://github.com/trip5
+
 substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
@@ -763,11 +764,7 @@ switch:
     id: hour12_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(hour12_mode)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(hour12_mode);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "12 Hour Mode On");
@@ -781,11 +778,7 @@ switch:
     id: date_display_mode_us_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(date_display_mode_us)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(date_display_mode_us);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "Date Display US Mode On");
@@ -799,11 +792,7 @@ switch:
     id: tzoffset_on_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(tzoffset_on)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(tzoffset_on);
     turn_on_action:
         lambda: |-
           ESP_LOGD("main", "Time Zone Offset On");
@@ -817,11 +806,7 @@ switch:
     id: date_mode_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(date_display_mode)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(date_display_mode);
     turn_on_action:
         - logger.log: "Date Display Mode On"
         - lambda: |-
@@ -843,11 +828,7 @@ switch:
     id: wifi_stop_seek_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(wifi_stop_seek)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(wifi_stop_seek);
     turn_on_action:
         - delay: 1s
         - logger.log: "Wifi Stop Seek On"
@@ -873,11 +854,7 @@ switch:
     id: alarms_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: |-
-      if (id(alarms_on)) {
-        return true;
-      } else {
-        return false;
-      }
+      return id(alarms_on);
     turn_on_action:
         - logger.log: "Alarms On"
         - lambda: |-
