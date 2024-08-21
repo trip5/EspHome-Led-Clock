@@ -130,6 +130,21 @@ By default, the buttons can be used as such:
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
 
+## Special Note Regarding the WebUI's Internet Dependence
+
+ESPHome devices usually rely on the Internet to be available to access a Javascript file that formats the web UI.
+Specifically, the device will look for https://oi.esphome.io/v2/www.js but this file can be made available on-device with this included in the `webserver:` section.
+
+```
+  local: true
+```
+If you don't mind the device's WebUI being dependent on the Internet, you could remove this line.
+You could consider hosting the file on another machine in-house, too by using something like:
+```
+  js_include: ""
+  js_url: "http://192.168.1.1/esphome-www/www.js"
+```
+
 ## Home Assistant Version
 
 The file [`EHLClock-HA.yaml`](EHLClock-HA.yaml) contains functions useful for using the clock with Home Assistant.
@@ -187,10 +202,12 @@ By default, the buttons can be used as such:
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
 
+
 ## Update History
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2024.08.22 | Added `local: true` to non-HA version |
 | 2024.06.29 | Added Home Assistant version, major changes to main version, fixed time sync error |
 | 2023.11.16 | Wifi Stop Seek, improved status messages |
 | 2023.10.22 | Show date on intervals |

@@ -255,6 +255,8 @@ web_server:
   port: 80
   ota: true
   include_internal: false
+  version: 2
+  local: true # will download www.js and serve it directly from the clock
 
 captive_portal:
 
