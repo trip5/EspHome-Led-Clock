@@ -7,6 +7,7 @@ substitutions:
   project_version: "2024.06.29"
   project_name: Trip5.EspHomeLedClock-HA
   waiting: "EHLC" # shows when waiting for time
+
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
   # Most can be viewed here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
   # or here: https://support.cyberdata.net/portal/en/kb/articles/010d63c0cfce3676151e1f2d5442e311
@@ -22,19 +23,19 @@ substitutions:
   # This is the sensor name from your Home Assistant configuration
   ha_sensor_data: sensor.led_clock_data
 
-# SCL & SDA are same for Sinilink and 303 Clocks
+# Pins for I2C RTC are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
   sda_pin: GPIO13
-# TM1637 or similar? Specify clk & dio pins here, delete the above 2 lines and edit the rest of the file carefully!
+# TM1637 or similar? Specify clk & dio pins here, delete the above 2 lines (if no RTC) and edit the rest of the file carefully!
 #  clk_pin: GPIO16
 #  dio_pin: GPIO17
 
 # Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
   segment_mapping: PGFEDCBA # Specific to the Sinilink XY-Clock
 #  segment_mapping: GBPEDCAF # Specific to 303WIFILC01
-#  TM1637 units which support the colon will work with above segment mapping (PM dot is ignored by the hardware)
+#  TM1637 units which support the colon will work with any segment mapping (PM dot is ignored by the hardware)
 #  * Actually TM1637 doesn't use segment mapping but the routines that make the blinking colon depend on a segment_mapping being specified)
-#  segment_mapping: PABCDEFG # normal TM1650 (support not really included yet)
+#  segment_mapping: PABCDEFG # normal TM1650 (untested)
 
 # Sinilink Clock uses these pins for buttons
   down_button_pin: GPIO9
