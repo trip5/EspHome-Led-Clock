@@ -1,8 +1,8 @@
 # Choose which sensor type(s) - this first one is simple and relies only on simple sensors or derivative sensors
 
 - sensor:
-    - name: LED PixelClock Data
-      unique_id: led_pixelclock_data
+    - name: LED Clock Data
+      unique_id: led_clock_data
       state: "OK"
       attributes:
         # The numbered attributes (0 to 9) are info screens

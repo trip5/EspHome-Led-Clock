@@ -23,6 +23,8 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ![image](./images/sinilink_XY-Clock-Pins.jpg)
 
+Also, sometimes I've had to plug in the USB cable after making the connections... not sure why.
+
 ## 303WifiLC01 Clock
 
 ![image](./images/303WIFILC01.jpg)
@@ -36,6 +38,10 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ![image](./images/303WIFILC01-Pins.jpg)
 
+## Handmade TM1637 Clock (with a Lolin ESP32 Lite)
+
+![image](./images/TM1637-boxclock.jpg)
+
 ## Using This firmware
 
 This is ESPHome, so it's not pretty but very functional.  You should set your wifi information in the YAML and edit it carefully, especially if not using a Sinilink XY-Clock.
@@ -45,15 +51,9 @@ I have included functionality for 2 alarms for now but you can likely increase t
 If using this device on a network outside your usual, ESPHome will, after 10 seconds (set by the YAML), give up trying to connect to its "home" network and enter AP mode.
 You should then connect to the hotspot (with a mobile phone) and then go to 192.168.4.1 in a browser to select which local wifi network you would like it to connect to.
 The clock will display its IP address on boot and also by holding down the set button for more than 1 second. When returning home, you will have to go through this process again.
-Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (it doesn't by default anyways).
+Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (the non-HA version uses SNTP by default).
 
 There does appear to be some errors with "Component preferences took a long time for an operation" but it only happens when saving persistent variables to flash and doesn't seem to affect functionality, unless you try to change a variable during this moment.
-
-### Screenshot
-
-Ideally, this would look a lot prettier than it does but there's not a lot I can with the default ESPHome WebUI.  The alarms take up a lot.
-
-![image](./images/EHLC_Screenshot.png)
 
 ### Date Display
 
@@ -61,17 +61,13 @@ The clock can display the date at configurable intervals.
 The display interval checks how long the clock was displayed for and then displays the date for the specified time (in seconds).
 Keep in mind that displaying the message from the Home Assistant integration will not interrupt this count, so I recommend choosing sane and even numbers.
 
-### Alarms
-
-The clock can play the date at configurable intervals.  The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune.
-
-I recommend just doing a search for "RTTTL" and the name of the song you would like.  If you really want a lot, check out: https://picaxe.com/rtttl-ringtones-for-tune-command/
-
 ### Time Sync
 
 Time can be synced to the Internet at configurable intervals between 1 - 24 hours, provided the wifi network is connected.
+In the HA version, this is selectable.  In the non-HA versions, this option is not selectable in the UI.  It must be fixed in the YAML.
 
-## Non-HA Version
+
+## Regular Version
 
 The file [`EHLClock.yaml`](EHLClock.yaml) contains functions useful for using the clock as... mostly just a clock but with some power-saving functions.
 It includes all of the functions above as well as these below.  This version has a WebUI which can be accessed via it's IP after connecting the clock to Wifi.
@@ -95,60 +91,91 @@ Under normal conditions, when an ESPHome device loses wifi connectivity, it will
 While in this non-connected state, the clock will use more power than usual. If you have a coin-cell battery that maintains the RTC during a blackout,
 you could re-connect the clock to a powerbank or some other power source and it will continue to function.
 
-Please note that this also means that the clock will not try to connect to wifi again (this will be indicated on the screen as "Wifi Off" when long-pressing the button),
+Please note that this also means that the clock will not try to connect to wifi again (this will be indicated on the screen as "Wifi Off"),
 unless you reset the power, which just means unplugging it and plugging it back in again.
 
-Do not set this time too short.  I have allowed 60 seconds minimum in the options but this could mean your clock stops trying to connect to wifi just because
-your router rebooted or the wifi was a bit sketchy. The default is 120 seconds which I think is enough time for even the slowest router to reboot, but it's your choice.
+The time to attempt connection is set in the YAML.  Do not set this time too short for usual circumstances.  The range is 60 to 315 seconds.
+Also, do not go outside these numbers as the variable that holds this number is limited to this range.
+
+I have allowed 60 seconds minimum in the options but this could mean your clock stops trying to connect to wifi just because
+your router rebooted or the wifi was a bit sketchy. So you should probably set it to something reasonable.
+The default is 180 seconds which I think is enough time for even the slowest router to reboot, but it's your choice.
 Also keep in mind that this time will affect how long the configuration hotspot is available for.
 The hotspot will activate after 10 seconds (lowered from 60 seconds which is ESPHome default).
 
 You can enable or disable this mode by holding the button for 5 seconds to toggle the function. The wifi will be turned on again if it has been turned off.
 
-#### Power Consumption (measured with XY-Clock Blue, 2023.11.16 Version)
+### Display Off
 
-| Status / Mode           | Power usage (24 hours) |
-| ----------------------- | ---------------------- |
-| Connected               | 2500 mAh               |
-| Stop Seek Off & No Wifi | 2800 mAh               |
-| Stop Seek On & Wifi Off | 750 mAh                |
+There are two options to turn off the display. One is to turn off the display after a configurable time when the clock is not being used (in minutes).
+The other is to turn off the display when there is no Wifi connection (in seconds).  The display may be turned on again by pressing the button.
+
+### Power Consumption
+
+Measured with Sinilink XY-Clock Blue LED, 2024.10.28 Version, minimum 1 hour each mode
+
+| Status: Modes                                        | Power usage per hour |
+| ---------------------------------------------------- | -------------------- |
+| Connected: Display On - Brightness 7                 | 132 mA |
+| Connected: Display On - Brightness 1                 | 105 mA |
+| Connected: Display Off after 5 min                   | 100 mA |
+| No Wifi: Stop Seek Off & Display On - Brightness 1   | 108 mA |
+| No Wifi: Stop Seek On & Display On - Brightness 1    | < 100 mA * |
+| No Wifi: Stop Seek On & Display Off after 30 sec     | < 100 mA * |
+
+My USB power tool refused to count when the current was below 0.1 A.  I'll redo these tests after I get a better tool.
+
 
 ### LED Output
 
-While the clock is connecting to wifi or while in hotspot mode, the blue LED will pulse on and off. In regular mode, the LED will turn on or off will be every 1 second.
-If Stop Seek is enabled, the led will pulse on or off every 2 seconds. If connected to Wifi or Stop Seek (as above) is active, the LED will turn off completely.
+While the clock is attempting to connect to wifi or while in hotspot mode, the blue LED will pulse on and off every 1 second.
+
+If Stop Seek is enabled, then the LED will pulse on or off every 2 seconds during connection attempts.
+
+If connected to Wifi or Stop Seek has activated, the LED will turn off completely.
 
 ### Button Functions
 
 By default, the buttons can be used as such:
 
-| Button  | Short-click Function | Long-press Function (hold for 1 second) | Very Long-press Function (hold 5s) |
-| ------- | -------------------- |---------------------------------------- | --------------------------------------------- |
-| Up      | Increase brightness  | Toggle all alarms on/off (only on XY-Clock) | |
-| Down    | Decrease brightness | Toggle Time Zone Offset on/off | |
-| Set     | Toggle 12/24-hour mode | Show the clock's IP address (or other wifi status) | Toggle the Wifi Stop Seek (see below) |
+| Button  | Short-click Function | Long-press Function (hold for 1 second) |
+| ------- | -------------------- |---------------------------------------- |
+| Up      | Increase brightness  | Toggle the Wifi Stop Seek (see below)   |
+| Down    | Decrease brightness  | Toggle Time Zone Offset on/off          |
+| Set     | Toggle 12/24-hour mode | Show the clock's IP address (or other wifi status) |
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
 
-## Special Note Regarding the WebUI's Internet Dependence
+### Special Note Regarding the WebUI's Internet Dependence
 
 ESPHome devices usually rely on the Internet to be available to access a Javascript file that formats the web UI.
 Specifically, the device will look for https://oi.esphome.io/v2/www.js but this file can be made available on-device with this included in the `webserver:` section.
+This is added to the non-HA version by default.
 
-```
+```yaml
   local: true
 ```
 If you don't mind the device's WebUI being dependent on the Internet, you could remove this line.
 You could consider hosting the file on another machine in-house, too by using something like:
-```
+```yaml
   js_include: ""
   js_url: "http://192.168.1.1/esphome-www/www.js"
 ```
 
+## Alarms Version
+
+This regular version of the clock can play the alarm at configurable intervals.  The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune.
+The 303 does not, so stick to one of the other versions.
+
+It has all of the same functions as the above version but a few options have to be hard-coded into the YAML instead of available as selectable options.
+This is because the ESP8266 has severe memory constraints and the alarm functionality and WebUI both cause a lot of strain on the device.
+
+See below for more information regarding the speaker.
+
 ## Home Assistant Version
 
 The file [`EHLClock-HA.yaml`](EHLClock-HA.yaml) contains functions useful for using the clock with Home Assistant.
-It does not include the WebUI, Time Zone Offset, or Wifi Stop Seek but it does includes all of the functions below.
+It does not include the WebUI, Time Zone Offset, or Wifi Stop Seek but it does include Alarms and all of the functions below.
 
 ### Alternate Time Zone
 
@@ -172,7 +199,7 @@ This example will send a message that will display for 3 seconds before revertin
 
 ![image](./images/EHLC_Home_Assistant_tune.png)
 
-This service is just for the Sinilink Clock.  See above and below for more info about RTTTL music.
+This service is just for the Sinilink Clock and other clocks with a piezo speaker.  See above and below for more info about RTTTL music.
 
 ### Template Sensors
 
@@ -181,7 +208,7 @@ They are all treated as sensors, similarly as my [ESPHome-eInk-Boards](https://g
 
 Put something like this in your `configuration.yaml`:
 
-```
+```yaml
 template: !include template.yaml
 ```
 
@@ -194,11 +221,11 @@ I personally use only one sensor in my Home Assistant and 2 clocks in the house 
 
 By default, the buttons can be used as such:
 
-| Button  | Short-click Function | Long-press Function (hold for 1 second) | Very Long-press Function (hold 5s) |
-| ------- | -------------------- |---------------------------------------- | --------------------------------------------- |
-| Up      | Increase brightness  | Toggle all alarms on/off (only on XY-Clock) | |
-| Down    | Decrease brightness | Toggle Alt Time Zone | |
-| Set     | Toggle 12/24-hour mode | Toggle HA Sensors Data Stop | Toggle HA Sensors Data All |
+| Button  | Short-click Function | Long-press Function (hold for 1 second) |
+| ------- | -------------------- |---------------------------------------- |
+| Up      | Increase brightness  | Toggle HA Sensors Data All |
+| Down    | Decrease brightness | Toggle Alt Time Zone |
+| Set     | Toggle 12/24-hour mode | Toggle HA Sensors Data Stop |
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
 
@@ -207,6 +234,7 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2024.10.28 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
 | 2024.08.22 | Added `local: true` to non-HA version |
 | 2024.06.29 | Added Home Assistant version, major changes to main version, fixed time sync error |
 | 2023.11.16 | Wifi Stop Seek, improved status messages |
@@ -230,19 +258,28 @@ About outputting to the Display: https://esphome.io/components/display/tm1637.ht
 
 ESPHome's Display: https://esphome.io/components/display/index.html
 
+### Speaker Notes
+
+If you plan to build your own and want a speaker, get a passive one.  Active ones are a pain to get working with ESPHome.
+
 About the Rtttl Buzzer: https://esphome.io/components/rtttl.html
 
 Some RTTTL tunes: https://picaxe.com/rtttl-ringtones-for-tune-command/
 
-#### TM1650 Display
+### TM1650 Display
 
 Buzzer13's TM1650 ESPHome component: https://github.com/buzzer13/esphome-components
 
 My fork (which includes a highly modified font): https://github.com/trip5/esphome-tm1650
 
-#### DS1302 RTC
+### DS1302 RTC
 
 Trombik's ESPHome Component for the DS1302 RTC (used on the 303): https://github.com/trombik/esphome-component-ds1302
 
 My fork (probably the same): https://github.com/trip5/esphome-ds1302
 
+### My Other Clocks
+
+EspHome-Led-PixelClock: https://github.com/trip5/EspHome-Led-PixelClock
+
+EspHome-VFD-Clock: https://github.com/trip5/EspHome-VFD-PixelClock

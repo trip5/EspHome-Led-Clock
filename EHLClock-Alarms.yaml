@@ -1,26 +1,20 @@
 # My github: https://github.com/trip5
 substitutions:
-  name:  xy-clock-white
-  friendly_name: XY-Clock-White
-  comment: "EHLClock-HA from Trip5"
+  name:  xy-clock-blue
+  friendly_name: XY-Clock-Blue
+  comment: "EHLClock-Alarms from Trip5"
   project_version: "2024.10.29"
-  project_name: Trip5.EspHomeLedClock-HA
+  project_name: Trip5.EspHomeLedClock
   waiting: "EHLC" # shows when waiting for time
 
+  # Time zone can be Olsen type ("Asia/Seoul") # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  # Or it can be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
   # Most can be viewed here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
   # or here: https://support.cyberdata.net/portal/en/kb/articles/010d63c0cfce3676151e1f2d5442e311
   # If you need to make a custom POSIX format you can look here: https://developer.ibm.com/articles/au-aix-posix/)
   # or even better, use this POSIX Generator (courtesy of TopYuan): https://www.topyuan.top/posix
-  time_zone: "AST4ADT,M3.2.0,M11.1.0"
-  time_zone_name: "AST"
-  # Alternate Time Zone here.  Must also be POSIX format - it would be good to keep the time zone matched to any language substitution being used (ie. Korean to match Korea Standard Time)
-  time_zone_alt: "KST-9"
-  time_zone_alt_name: "KST"
-  #Note these time zone names will be displayed, so keep it simple and 7-segment-compatible!
-
-  # This is the sensor name from your Home Assistant configuration
-  ha_sensor_data: sensor.led_clock_data
+  time_zone: "KST-9"
 
 # Pins for I2C RTC are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
@@ -36,22 +30,25 @@ substitutions:
 #  * Actually TM1637 doesn't use segment mapping but the routines that make the blinking colon depend on a segment_mapping being specified)
 #  segment_mapping: PABCDEFG # normal TM1650 (untested)
 
-# Sinilink Clock uses these pins for buttons
+# Sinilink Clock uses these pins for buttons, edit as needed
   down_button_pin: GPIO9
   up_button_pin: GPIO10 
   set_button_pin: GPIO16
-# 303 Clock uses these pins for buttons
-#  down_button_pin: GPIO15
-#  up_button_pin: GPIO4
-#  set_button_pin: GPIO0
 
 # Sinilink Clock has these additional GPIOs (the blue LED looks better for status)
   status_led_pin: GPIO0
   other_led_pin: GPIO2
   buzzer_pin: GPIO5
   key_pin: GPIO14 #	Contact 'KEY' (unused)
-# The 303 only has 1 LED (uncomment next line and delete the above 4 lines)
-#  status_led_pin: GPIO2
+
+# Hard-coded variables (removed from UI because of memory constraints)
+  wifi_stop_seek_time: "180" # How many seconds to give up trying to connect to Wifi: 60 to 315 (do not go outside these numbers)
+  time_sync_interval: "8" # How often to sync the RTC: 1 to 24 (hours)
+
+  time_display_time: "8" # How many seconds to show time
+  date_display_time: "2" # How many seconds to show date
+  blink_option: "1" # Colon Blink (0=Off / 1=On / 2=Always On)
+  date_display_mode_us: "false" # American date style (false = MMDD / true = DDMM)
 
 esphome:
   name: $name
@@ -66,10 +63,29 @@ esphome:
         - globals.set:
             id: segmentmap
             value: !lambda 'return "$segment_mapping";'
+        - lambda: 'id(display_off) = false;'
 # The Sinilink uses a DS1307 RTC (supported by ESPHome)
         - ds1307.read_time:
 # The 303 uses a DS1302 RTC (will also require an external component)
 #        - ds1302.read_time:
+        - globals.set:
+            id: sync_time
+            value: !lambda 'return $time_sync_interval;'
+        - globals.set:
+            id: wifi_stop_seek_time
+            value: !lambda 'return ($wifi_stop_seek_time - 60);'
+        - globals.set:
+            id: time_display_time
+            value: !lambda 'return $time_display_time;'
+        - globals.set:
+            id: date_display_time
+            value: !lambda 'return $date_display_time;'
+        - globals.set:
+            id: blink_option
+            value: !lambda 'return $blink_option;'
+        - globals.set:
+            id: date_display_mode_us
+            value: !lambda 'return $date_display_mode_us;'
     - priority: -100
       then:
         - wait_until:
@@ -84,17 +100,34 @@ esp8266:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  reboot_timeout: 15min # Default is 15min
+  reboot_timeout: 0s # reboot if no wifi (must be disabled for wifi to be turned off)
+  enable_on_boot: True
   id: wifi_id
   ap:
     ssid: $name
     password: !secret ap_password
+    ap_timeout: 10s # this has to be short, especially if using Stop Seek Wifi
   on_connect:
     - logger.log: "Wifi connected"
     - light.turn_off: led1
+    - delay: 1s
+    - button.press: display_ip
+    - lambda: |-
+        id(wifi_stop_seek_time_count) = 0;
+        id(my_time)->update();
+  on_disconnect:
+    - if:
+        condition:
+          - lambda: 'return (id(wifi_stop_seek) == true);'
+        then:
+          - logger.log: "Wifi disconnected - will be disabled soon (stop seek is on)..."
+        else:
+          - logger.log: "Wifi disconnected"
+    - delay: 1s
+    - button.press: display_ip
 
 external_components:
-# Use Trip5's fork of Buzzer13's TM1650 ESPHome Component
+# Use Trip5's fork of Buzzer13's TM1650 ESPHome Component (for the Sinilink Clock), delete if using TM1637 (supported by ESPHome natively)
   - source:
       type: git
       url: https://github.com/trip5/esphome-tm1650
@@ -107,7 +140,7 @@ external_components:
 #      path: my-components/EHCL-Clock # e.g. /config/esphome/components
 #    components: [ tm1650 ]
 
-# The 303 Clock has a DS1302 RTC (uncomment this section to use it), use Trip5's fork of Trombik's DS1302 ESPHome Component
+# If using an a DS1302 RTC or other RTC, uncomment this section and edit as needed
 #  - source:
 #      type: git
 #      url: https://github.com/trip5/esphome-ds1302
@@ -116,35 +149,36 @@ external_components:
 #    components: [ ds1302 ]
 
 time:
-  - platform: homeassistant # use Home Assistant as a time source (sntp is also possible)
+  - platform: sntp # use SNTP as a time source
     id: my_time
     timezone: "$time_zone"
     update_interval: 24h # This seems like the longest safe amount of time - actual configured update happens in interval section
 
 # The Sinilink Clock uses a DS1307 RTC
   - platform: ds1307
-    id: my_time_ds
     timezone: "$time_zone"
     update_interval: never
 
-# The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above DS1307 section if needed)
+# If using a DS1302 RTC or other SPI RTC, uncomment this section and delete the above DS1307 section
 #  - platform: ds1302
-#    id: my_time_ds
 #    cs_pin: GPIO5
 #    dio_pin: GPIO14
 #    clk_pin: GPIO16
 #    update_interval: never
 #    timezone: "$time_zone"
 
-# Check if alarms need to be played (needs to be under whichever Platform has the ID, preferably the RTC or SNTP?)
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the entire section
+# Check if alarms need to be played (needs to be under whichever Platform has the ID, preferably the RTC)
 # If you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed
     on_time:
       - seconds: 0
         minutes: /1 # repeat every minute
         then:
         - lambda: |-
-            std::time_t tz1time = (id(my_time).now().timestamp);
+            int offset = 0;
+            if (id(tzoffset_on) != false) {
+              offset = (int)(60*60*(id(tzoffset)));
+            }
+            std::time_t tz1time = (id(my_time).now().timestamp+offset);
             std::tm *tz1time_astm = localtime(&tz1time);
             int tzhr = tz1time_astm->tm_hour;
             int tzmin = tz1time_astm->tm_min;
@@ -167,54 +201,24 @@ script:
     mode: restart
     then:
       - lambda: 'id(my_time)->update();'
-# The Sinilink Clock uses a DS1307 RTC
+# The Sinilink Clock uses a DS1307 RTC / replace with another RTC if needed
       - ds1307.write_time:
-# The 303 Clock uses a DS1302 RTC (uncomment this and delete the other if needed)
-#      - ds1302.write_time:
+  - id: display_off_activate
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGD("main", "Display Off activated");
+          id(display_off) = true;
+  - id: display_off_deactivate
+    mode: restart
+    then:
+      - lambda: |-
+          ESP_LOGD("main", "Display Off deactivated");
+          id(display_off_time_count) = 0;
+          id(display_off) = false;
 
-# The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section
 api:
-  reboot_timeout: 15min # 15min is default
-  services:
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 6 lines
-    - service: tune
-      variables:
-        tune: string
-      then:
-        - rtttl.play:
-            rtttl: !lambda 'return tune;'
-# This next section creates the Home Assistant services to allow messages to be displayed
-    - service: message
-      variables:
-        message: string
-        message_alive_time: int
-        message_display_time: int
-        message_clock_time: int
-      then:
-        - globals.set:
-            id: message
-            value: !lambda 'return message;'
-        - globals.set:
-            id: message_alive_time
-            value: !lambda 'return message_alive_time;'
-        - globals.set:
-            id: message_display_time
-            value: !lambda 'return message_display_time;'
-        - globals.set:
-            id: message_clock_time
-            value: !lambda 'return message_clock_time;'
-        - globals.set:
-            id: message_clock_time_count
-            value: !lambda 'return message_clock_time;'
-        - globals.set:
-            id: message_alive_time_count
-            value: '0'
-        - logger.log:
-            format: "Message: %s"
-            args: [ 'message.c_str()' ]
-        - logger.log:
-            format: "Alive Time: %i / Display Time: %i / Clock Time: %i"
-            args: [ 'message_alive_time', 'message_display_time' , 'message_clock_time' ]
+  reboot_timeout: 0s # Must be disabled to allow the Wifi enable/disable to function
 
 mdns:
   disabled: false
@@ -222,6 +226,7 @@ mdns:
 # Enable logging (and stops the various sensors/switches from spamming the log)
 # Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing
 logger:
+#  level: NONE
   level: DEBUG
   logs:
     sensor: ERROR
@@ -257,11 +262,12 @@ ota:
             format: "OTA update error %d"
             args: ["x"]
 
-#Web Server is disabled due to memory constraints.  Enable at your own risk (consider removing captive_portal, reducing fonts to 1 to save memory)
-#web_server:
-#  port: 80
-#  ota: true
-#  include_internal: true # probably not necessary, as it will expose more than needed to the Web UI
+web_server:
+  port: 80
+  ota: true
+  include_internal: false
+  version: 2
+  local: true # will download www.js and serve it directly from the clock
 
 captive_portal:
 
@@ -289,47 +295,6 @@ text_sensor:
     lambda: 'return {"$time_zone"};'
     entity_category: diagnostic
     update_interval: 1h
-  # Call text sensors from Home Assistant
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 0
-    id: ha_sensor_data_0
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 1
-    id: ha_sensor_data_1
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 2
-    id: ha_sensor_data_2
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 3
-    id: ha_sensor_data_3
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 4
-    id: ha_sensor_data_4
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 5
-    id: ha_sensor_data_5
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 6
-    id: ha_sensor_data_6
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 7
-    id: ha_sensor_data_7
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 8
-    id: ha_sensor_data_8
-  - platform: homeassistant
-    entity_id: '${ha_sensor_data}'
-    attribute: 9
-    id: ha_sensor_data_9
 
 output:
   - platform: esp8266_pwm
@@ -337,7 +302,7 @@ output:
     pin:
       number: $status_led_pin
       inverted: true
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 3 lines
+# The next section is for the piezo speaker
   - platform: esp8266_pwm
     pin: $buzzer_pin
     id: rtttl_out
@@ -384,12 +349,24 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - number.increment: brightness_select
-      #Hold UP will toggle HA Sensors Data All
+          if:
+            condition:
+              - lambda: 'return id(display_off);'
+            then:
+              - script.execute: display_off_deactivate
+            else:
+              - number.increment: brightness_select
+      #Hold UP will toggle the wifi timeout
       - timing:
           - ON for at least 1s
         then:
-          - switch.toggle: ha_sensor_data_all_select
+          if:
+            condition:
+              - lambda: 'return id(display_off);'
+            then:
+              - script.execute: display_off_deactivate
+            else:
+              - switch.toggle: wifi_stop_seek_select  
   - platform: gpio
     pin:
       number: $down_button_pin
@@ -405,12 +382,24 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - number.decrement: brightness_select
-      #Hold DOWN will select enable or disable alt time zone
+          if:
+            condition:
+              - lambda: 'return id(display_off);'
+            then:
+              - script.execute: display_off_deactivate
+            else:
+              - number.decrement: brightness_select
+      #Hold DOWN will select enable or disable time zone offset
       - timing:
           - ON for at least 1s
         then:
-          - switch.toggle: tz_alt_select
+          if:
+            condition:
+              - lambda: 'return id(display_off);'
+            then:
+              - script.execute: display_off_deactivate
+            else:
+              - switch.toggle: tzoffset_on_select
   - platform: gpio
     pin: 
       number: $set_button_pin
@@ -425,19 +414,25 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - switch.toggle: hour12_select
-      #Hold SET 1s will toggle HA Sensors Data Stop
+          if:
+            condition:
+              - lambda: 'return id(display_off);'
+            then:
+              - script.execute: display_off_deactivate
+            else:
+              - switch.toggle: hour12_select
+      #Hold SET 1s will show the IP Address
       - timing:
           - ON for at least 1s
         then:
-          - switch.toggle: ha_sensor_data_stop_select
+          - button.press: display_ip
 
 
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 2 lines
+# The next section is for the piezo speaker
 rtttl:
   output: rtttl_out
 
-# This section contains a lot of lambda code... if using the Sinilink or 303, you shouldn't have to edit this at all
+# This section contains a lot of lambda code... if using the Sinilink, you shouldn't have to edit this at all
 # If using something else, you may need to edit the segmentmap sections (conveniently 'if' sections), depending on how the decimals/colons are handled
 # If that's true, get back to me on github by opening an issue and help contribute to other displays this YAML can handle!
 # If using a TM1637, you should change the platform to tm1637 and check a few lines just below here
@@ -451,10 +446,10 @@ display:
     # TM1637: remove the above 2 lines and uncomment the next 2 lines
     # clk_pin: $clk_pin
     # dio_pin: $dio_pin
-    # If you are using either the Sinilink or 303, there should be no need to edit anything inside this lambda below!
+    # For most 7-segment displays, there should be no need to edit anything inside this lambda below!
     lambda: |-
       // Display the message if all conditions are met
-      if (id(my_time).now().is_valid()) {
+      if (id(my_time).now().is_valid() && !id(display_off)) {
         if ((id(message_alive_time) != 0) && (id(message_clock_time_count) >= id(message_clock_time))) {
           id(message_display_time_count) += 1;
           id(message_alive_time_count) += 1;
@@ -470,114 +465,17 @@ display:
             }
           }
         } else {
-
-          // check if we should display sensor data now
-          if (id(ha_sensor_data_now) == true) {
-            std::string sensor_data_text = "";
-            if (id(ha_sensor_data_this) == 0) {
-              if (id(ha_sensor_data_0).state.empty()) {
-                id(ha_sensor_data_this) = 1;
-              } else {
-                sensor_data_text = id(ha_sensor_data_0).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 1) {
-              if (id(ha_sensor_data_1).state.empty()) {
-                id(ha_sensor_data_this) = 2;
-              } else {
-                sensor_data_text = id(ha_sensor_data_1).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 2) {
-              if (id(ha_sensor_data_2).state.empty()) {
-                id(ha_sensor_data_this) = 3;
-              } else {
-                sensor_data_text = id(ha_sensor_data_2).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 3) {
-              if (id(ha_sensor_data_3).state.empty()) {
-                id(ha_sensor_data_this) = 4;
-              } else {
-                sensor_data_text = id(ha_sensor_data_3).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 4) {
-              if (id(ha_sensor_data_4).state.empty()) {
-                id(ha_sensor_data_this) = 5;
-              } else {
-                sensor_data_text = id(ha_sensor_data_4).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 5) {
-              if (id(ha_sensor_data_5).state.empty()) {
-                id(ha_sensor_data_this) = 6;
-              } else {
-                sensor_data_text = id(ha_sensor_data_5).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 6) {
-              if (id(ha_sensor_data_6).state.empty()) {
-                id(ha_sensor_data_this) = 7;
-              } else {
-                sensor_data_text = id(ha_sensor_data_6).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 7) {
-              if (id(ha_sensor_data_7).state.empty()) {
-                id(ha_sensor_data_this) = 8;
-              } else {
-                sensor_data_text = id(ha_sensor_data_7).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 8) {
-              if (id(ha_sensor_data_8).state.empty()) {
-                id(ha_sensor_data_this) = 9;
-              } else {
-                sensor_data_text = id(ha_sensor_data_8).state.c_str();
-              }
-            }
-            if (id(ha_sensor_data_this) == 9) {
-              if (id(ha_sensor_data_9).state.empty()) {
-                if (id(ha_sensor_data_all) == false) {
-                  id(ha_sensor_data_this) = 0;
-                  sensor_data_text = id(ha_sensor_data_0).state.c_str();
-                }
-              } else {
-                sensor_data_text = id(ha_sensor_data_9).state.c_str();
-              }
-            }
-            if (sensor_data_text != "") {
-              id(ha_sensor_data_this_time) += 1;
-              if ((id(ha_sensor_data_this_time) >= (id(ha_sensor_data_time))) && (id(ha_sensor_data_all) == true)) {
-                id(ha_sensor_data_this_time) = 0;
-                id(ha_sensor_data_this) += 1;
-              }
-              if ((id(ha_sensor_data_this_time) > (id(ha_sensor_data_time))) && (id(ha_sensor_data_all) == false)) { // was just > but... 2 seconds either way?
-                id(ha_sensor_data_this_time) = 0;
-                id(ha_sensor_data_this) += 1;
-                id(ha_sensor_data_now) = false ; // we needed to buy 1 second if this mode is on
-              } else {
-                it.print(0, sensor_data_text.c_str());
-              }
-            } else {
-              id(ha_sensor_data_now) = false;
-              id(ha_sensor_data_this) = 0;
-              id(ha_sensor_data_this_time) = 0;
-            }
-            if ((id(ha_sensor_data_this) == 9) && (id(ha_sensor_data_all) == true)) {
-              id(ha_sensor_data_this) = false;
-              id(ha_sensor_data_now) = false;
-            }
-          }
-          // because there may be no HA sensors, we can't skip display the time/date - just check if it actually did print it
-          if (id(ha_sensor_data_now) == false) {
             if ((id(message_alive_time) != 0) && (id(message_clock_time) != 0)) {
               id(message_clock_time_count) += 1;
               id(message_alive_time_count) += 1;
             }
             static int blinking = false;
-            std::time_t tz1time = (id(my_time).now().timestamp);
+            // apply offset if needed https://community.home-assistant.io/t/multiple-time-zones/435315/12
+            int offset = 0;
+            if (id(tzoffset_on) != false) {
+              offset = (int)(60*60*(id(tzoffset)));
+            }
+            std::time_t tz1time = (id(my_time).now().timestamp + offset);
             std::tm *tz1time_astm = localtime(&tz1time);
             // check if the date should be displayed
             if ((id(time_display_count) >= (id(time_display_time))) && (id(date_display_mode) != false)) {
@@ -609,6 +507,9 @@ display:
                 it.print(1, mon_b.c_str());
                 it.print(2, mday_a.c_str());
                 it.print(3, mday_b.c_str());
+              }
+              if (id(date_display_count) >= id(date_display_time)) {
+                id(time_display_count) = 0;
               }
             } else {
               // display time
@@ -667,22 +568,18 @@ display:
               it.print(1, hour_b.c_str());
               it.print(2, min_a.c_str());
               it.print(3, min_b.c_str());
-            }
-
-            if (((id(date_display_count) >= id(date_display_time)) && (id(date_display_mode) != false)) || ((id(time_display_count) >= id(time_display_time)) && (id(date_display_mode) == false))) {
-              id(time_display_count) = 0;
-              // check if Sensor Data Stop is active 
-              if (id(ha_sensor_data_stop) == false) {
-                id(ha_sensor_data_now) = true;
-              }
-            }
-
           }
         }
       } else {
         it.print("$waiting");
       }
-      id(tm_display)->set_intensity(id(brightness_level));
+      // This next bit handles the display_off stuff
+      if (id(display_off)) {
+        it.print(0, "    ");
+        it.set_intensity(0);
+      } else {
+        it.set_intensity(id(brightness_level));
+      }
 
 interval:
   - interval: 1min # check if the time should be synced, and if so, do it
@@ -691,7 +588,51 @@ interval:
           id(sync_time_count) += 1;
           if (id(sync_time_count) >= (id(sync_time) * 60)) {
             id(sync_time_count) = 0;
-            id(sync_the_time).execute();
+            if (id(wifi_id).is_connected()) {
+              id(sync_the_time).execute();
+            }
+          }
+  - interval: 1s # check if the wifi should be turned off, and if so, do it (or turn on if stop seek has been disabled) and blink led while seeking wifi
+    then:
+      - lambda: |-
+          if (id(wifi_stop_seek) == true && !id(wifi_id).is_connected() && !id(wifi_id).is_disabled()){
+            id(wifi_stop_seek_time_count) += 1;
+            if (id(wifi_stop_seek_time_count) >= id(wifi_stop_seek_time) + 60) {
+              id(wifi_stop_seek_time_count) = 0;
+              id(wifi_id)->disable();
+              id(display_ip).press();
+            }
+          }
+          if (id(wifi_stop_seek) == false && id(wifi_id).is_disabled()) {
+            id(wifi_stop_seek_time_count) = 0;
+            id(wifi_id)->enable();
+            id(display_ip).press();
+          }
+          if (!id(wifi_id).is_connected() && !id(wifi_id).is_disabled()) {
+            id(seek_blink_led) += 1;
+            if (id(wifi_stop_seek) == false) {
+              if (id(seek_blink_led) % 1 == 0) {
+                auto call = id(led1).toggle();
+                call.perform();
+              }
+            } else {
+              if (id(seek_blink_led) % 2 == 0) {
+                auto call = id(led1).toggle();
+                call.perform();
+              }
+            }
+          }
+          if (id(led1).current_values.is_on() && (id(wifi_id).is_connected() || id(wifi_id).is_disabled())) {
+              auto call = id(led1).turn_off();
+              call.perform();
+          }
+          if (id(my_time).now().is_valid() && !id(display_off)) {
+            if ((id(display_off_no_wifi_time) != 0 && (!id(wifi_id).is_connected() || id(wifi_id).is_disabled())) || id(display_off_time) != 0) {
+              id(display_off_time_count) = id(display_off_time_count) + 1;
+            }
+            if ((id(display_off_time) != 0 && id(display_off_time_count) >= (id(display_off_time) * 60)) || (id(display_off_no_wifi_time) != 0 && id(display_off_time_count) >= id(display_off_no_wifi_time))) {
+              id(display_off_activate).execute();
+            }
           }
 
 globals:
@@ -757,7 +698,7 @@ globals:
     initial_value: 'false'
   - id: blink_option
     type: uint8_t
-    restore_value: true
+    restore_value: false
     initial_value: '1'
   - id: date_display_mode
     type: bool
@@ -765,15 +706,15 @@ globals:
     initial_value: 'false'
   - id: date_display_mode_us
     type: bool
-    restore_value: true
+    restore_value: false
     initial_value: 'false'
   - id: time_display_time
     type: uint8_t
-    restore_value: true
+    restore_value: false
     initial_value: '8'
   - id: date_display_time
     type: uint8_t
-    restore_value: true
+    restore_value: false
     initial_value: '2'
   - id: time_display_count
     type: uint8_t
@@ -785,42 +726,55 @@ globals:
     initial_value: '0'
   - id: sync_time
     type: uint8_t
-    restore_value: true
+    restore_value: false
     initial_value: '8'
   - id: sync_time_count
     type: uint8_t
     restore_value: false
     initial_value: '0'
-# HA Sensors variables
-  - id: ha_sensor_data_this
+# TZ Offset Variables
+  - id: tzoffset
+    type: int8_t
+    restore_value: true
+    initial_value: '0'
+  - id: tzoffset_on
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+# Wifi Stop Seek Variables
+  - id: wifi_stop_seek
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+  - id: wifi_stop_seek_time
+    type: uint8_t
+    restore_value: false
+    initial_value: '120'
+  - id: wifi_stop_seek_time_count
     type: uint8_t
     restore_value: false
     initial_value: '0'
-  - id: ha_sensor_data_this_time
+  - id: seek_blink_led
     type: uint8_t
     restore_value: false
     initial_value: '0'
-  - id: ha_sensor_data_now
+# Display Off Variables
+  - id: display_off
     type: bool
     restore_value: false
     initial_value: 'false'
-  - id: ha_sensor_data_all
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: ha_sensor_data_stop
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: ha_sensor_data_time
+  - id: display_off_time
     type: uint8_t
     restore_value: true
-    initial_value: '2'
-# Alt Time Zone variable
-  - id: tz_alt
-    type: bool
+    initial_value: '0'
+  - id: display_off_time_count
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
+  - id: display_off_no_wifi_time
+    type: uint8_t
     restore_value: true
-    initial_value: 'false'
+    initial_value: '0'
 # Alarms Variables (edit as needed, each alarm requires 3 variables) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 25 lines
   - id: alarm1_tune
     type: uint8_t
@@ -853,8 +807,51 @@ button:
     id: restart_button
     name: "$friendly_name Restart"
     entity_category: diagnostic
+  - platform: template
+    id: display_ip
+    name: "Display IP Address"
+    internal: true
+    on_press:
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+            - lambda: |-
+                if (id(wifi_id).is_disabled()) {
+                  id(message) = ("Off");
+                } else {
+                  id(message) = ("noIP");
+                }
+                id(message_alive_time) = 3;
+                id(message_display_time) = 3;
+                id(message_clock_time) = 0;
+          else:
+            - lambda: |-
+                int IPA, IPB, IPC, IPD;
+                sscanf((id(wifi_ip).state.c_str()), "%d.%d.%d.%d", &IPA, &IPB, &IPC, &IPD);
+                id(IPAddressA) = IPA;
+                id(IPAddressB) = IPB;
+                id(IPAddressC) = IPC;
+                id(IPAddressD) = IPD;
+                id(message) = "IP";
+                id(message_alive_time) = 100;
+                id(message_display_time) = 100;
+                id(message_clock_time) = 0;
+            - delay: 2s
+            - lambda: 'id(message) = to_string(id(IPAddressA));'
+            - delay: 2s
+            - lambda: 'id(message) = to_string(id(IPAddressB));'
+            - delay: 2s
+            - lambda: 'id(message) = to_string(id(IPAddressC));'
+            - delay: 2s
+            - lambda: 'id(message) = to_string(id(IPAddressD));'
+            - delay: 2s
+            - lambda: |-
+                id(message_alive_time) = 0;
+                id(message_display_time) = 0;
 
-# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 21 lines
+# Tune Buttons (edit as needed, verify the selector below matches the number available)
   - platform: template
     id: tune1
     name: "Tune 1: Siren"
@@ -892,18 +889,18 @@ switch:
             ESP_LOGD("main", "12 Hour Mode Off");
             id(hour12_mode) = false;
   - platform: template
-    name: "$friendly_name Date Display US Mode (DDMM)"
-    id: date_display_mode_us_select
+    name: "$friendly_name Time Zone Offset On"
+    id: tzoffset_on_select
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(date_display_mode_us);'
+    lambda: 'return id(tzoffset_on);'
     turn_on_action:
         - lambda: |-
-            ESP_LOGD("main", "Date Display US Mode On");
-            id(date_display_mode_us) = true;
+            ESP_LOGD("main", "Time Zone Offset On");
+            id(tzoffset_on) = true;
     turn_off_action:
         - lambda: |-
-            ESP_LOGD("main", "Date Display US Mode Off");
-            id(date_display_mode_us) = false;
+            ESP_LOGD("main", "Time Zone Offset Off");
+            id(tzoffset_on) = false;
   - platform: template
     name: "$friendly_name Date Display Mode"
     id: date_mode_select
@@ -926,64 +923,29 @@ switch:
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
   - platform: template
-    name: "$friendly_name HA Sensors Data All"
-    id: ha_sensor_data_all_select
+    name: "$friendly_name Wifi Stop Seek"
+    id: wifi_stop_seek_select
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(ha_sensor_data_all);'
-    turn_on_action:
-        - lambda: |-
-            ESP_LOGD("main", "HA Sensors Data All On");
-            id(ha_sensor_data_all) = true;
-    turn_off_action:
-        - lambda: |-
-            ESP_LOGD("main", "HA Sensors Data All Off");
-            id(ha_sensor_data_all) = false;
-  - platform: template
-    name: "$friendly_name HA Sensors Data Stop"
-    id: ha_sensor_data_stop_select
-    restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(ha_sensor_data_stop);'
-    turn_on_action:
-        - lambda: |-
-            ESP_LOGD("main", "HA Sensors Data Stop On");
-            id(ha_sensor_data_stop) = true;
-    turn_off_action:
-        - lambda: |-
-            ESP_LOGD("main", "HA Sensors Data Stop Off");
-            id(ha_sensor_data_stop) = false;
-# Alt Time Zone selector / activator
-  - platform: template
-    name: "$friendly_name Alternate Time ($time_zone_alt_name)"
-    id: tz_alt_select
-    restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(tz_alt);'
+    lambda: 'return id(wifi_stop_seek);'
     turn_on_action:
         - delay: 1s
-        - logger.log: "Alt Time Zone on: $time_zone_alt_name"
+        - logger.log: "Wifi Stop Seek On"
         - lambda: |-
-            id(message) = ("$time_zone_alt_name");
+            id(wifi_stop_seek) = true;
+            id(message) = ("stop");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
-            id(tz_alt) = true;
-            id(my_time)->set_timezone("$time_zone_alt");
-            id(my_time_ds)->set_timezone("$time_zone_alt");
-            id(my_time)->call_setup();
     turn_off_action:
         - delay: 1s
-        - logger.log: "Alt Time Zone off: $time_zone_name"
+        - logger.log: "Wifi Stop Seek Off"
         - lambda: |-
-            id(message) = ("$time_zone_name");
+            id(wifi_stop_seek) = false;
+            id(message) = ("seeH");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
-            id(tz_alt) = false;
-            id(my_time)->set_timezone("$time_zone");
-            id(my_time_ds)->set_timezone("$time_zone");
-            id(my_time)->call_setup();
-
 # Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
-# If using the 303 Clock or another with no piezo speaker, delete the next 26 lines
   - platform: template
     name: "$friendly_name Alarms On"
     id: alarms_select
@@ -1006,23 +968,6 @@ switch:
             id(message_clock_time) = 0;
             id(message) = ("Aoff");
 
-select:
-  - platform: template
-    name: "$friendly_name Colon Blink (0=Off / 1=On / 2=Always On)"
-    id: blink_option_select
-    restore_value: true
-    optimistic: true
-    options:
-      - '0'
-      - '1'
-      - '2'
-    initial_option: '1'
-    on_value:
-      then:
-        - lambda: |-
-            id(blink_option) = atoi(x.c_str());
-            ESP_LOGD("main", "Colon Blink: %d", id(blink_option));
-
 number:
   - platform: template
     name: "$friendly_name Brightness"
@@ -1040,67 +985,52 @@ number:
             id(brightness_level) = x;
             ESP_LOGD("main", "Brightness: %d", id(brightness_level));
   - platform: template
-    name: "$friendly_name Time Display Time"
-    id: time_display_time_select
+    name: "$friendly_name Time Zone Offset"
+    id: tzoffset_select
     restore_value: true
     optimistic: true
-    step: 1
-    min_value: 1
+    step: 0.25
+    min_value: -26
+    max_value: 26
+    initial_value: 0
+    mode: box
+    unit_of_measurement: hours
+    set_action:
+      then:
+        - lambda: |-
+            id(tzoffset) = x;
+            ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
+  - platform: template
+    name: "$friendly_name Display Off Time (minutes) (0 Disable)"
+    id: display_off_time_select
+    restore_value: true
+    optimistic: true
+    step: 5
+    min_value: 0
     max_value: 60
-    initial_value: 8
     mode: box
-    unit_of_measurement: seconds
     set_action:
       then:
         - lambda: |-
-            id(time_display_time) = x;
-            ESP_LOGD("main", "Time Display Time: %d seconds", id(time_display_time));
+            id(display_off_time) = x;
+            ESP_LOGD("main", "Display Off Time: %d minutes", id(display_off_time));
+        - script.execute: display_off_deactivate
   - platform: template
-    name: "$friendly_name Date Display Time"
-    id: date_display_time_select
+    name: "$friendly_name Display Off When No Wifi Time (seconds) (0 Disable)"
+    id: display_off_no_wifi_time_select
     restore_value: true
     optimistic: true
-    step: 1
-    min_value: 1
-    max_value: 60
-    initial_value: 2
-    mode: box
-    unit_of_measurement: seconds
-    set_action:
-      then:
-        - lambda: |-
-            id(date_display_time) = x;
-            ESP_LOGD("main", "Date Display Time: %d seconds", id(date_display_time));
-  - platform: template
-    name: "$friendly_name Time Sync Interval (hours)"
-    id: sync_time_select
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 1
-    max_value: 24
+    step: 5
+    min_value: 0
+    max_value: 180
     mode: box
     set_action:
       then:
         - lambda: |-
-            id(sync_time) = x;
-            ESP_LOGD("main", "Time Sync Interval (hours): %d", id(sync_time));
-  - platform: template
-    name: "$friendly_name HA Sensor Data Time (seconds)"
-    id: ha_sensor_data_time_select
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 1
-    max_value: 10
-    mode: box
-    set_action:
-      then:
-        - lambda: |-
-            id(ha_sensor_data_time) = x;
-            ESP_LOGD("main", "HA Sensor Data Time: %d seconds", id(ha_sensor_data_time));
+            id(display_off_no_wifi_time) = x;
+            ESP_LOGD("main", "Display Off No Wifi Time: %d seconds", id(display_off_no_wifi_time));
+        - script.execute: display_off_deactivate
 
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end.
 # Alarms UI Selector (each alarm requires tune/hour/min selectors)
 # Alarm 1 UI Selector Begins
   - platform: template
@@ -1149,7 +1079,7 @@ number:
             ESP_LOGD("main", "Alarm 1 Minutes: %d", id(alarm1_min));
 
 # If you require more alarms, copy from the next line to the end, paste, and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
-# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (up to 3 have been tested)
+# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (only 2 have been tested but you could probably get 3 or 4 by reducing the LOGGING to NONE)
 # Alarm 2 UI Selector Begins
   - platform: template
     name: "$friendly_name Alarm 2 Tune (0=Off)"
