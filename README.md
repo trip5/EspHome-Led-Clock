@@ -234,7 +234,7 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
-| 2024.10.28 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
+| 2024.10.29 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
 | 2024.08.22 | Added `local: true` to non-HA version |
 | 2024.06.29 | Added Home Assistant version, major changes to main version, fixed time sync error |
 | 2023.11.16 | Wifi Stop Seek, improved status messages |
