@@ -112,7 +112,7 @@ The other is to turn off the display when there is no Wifi connection (in second
 
 ### Power Consumption
 
-Measured with Sinilink XY-Clock Blue LED, 2024.10.28 Version, minimum 1 hour each mode
+Measured with Sinilink XY-Clock Blue LED, 2024.10.29 Version, minimum 1 hour each mode
 
 | Status: Modes                                        | Power usage per hour |
 | ---------------------------------------------------- | -------------------- |
