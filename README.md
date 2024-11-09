@@ -112,18 +112,16 @@ The other is to turn off the display when there is no Wifi connection (in second
 
 ### Power Consumption
 
-Measured with Sinilink XY-Clock Blue LED, 2024.10.29 Version, minimum 1 hour each mode
+*Sinilink XY-Clock Blue LED, 2024.11.10 Version, 1 hour each mode, measured with a FNIRSI FNB-58 powered externally*
 
-| Status: Modes                                        | Power usage per hour |
-| ---------------------------------------------------- | -------------------- |
-| Connected: Display On - Brightness 7                 | 132 mA |
-| Connected: Display On - Brightness 1                 | 105 mA |
-| Connected: Display Off after 5 min                   | 100 mA |
-| No Wifi: Stop Seek Off & Display On - Brightness 1   | 108 mA |
-| No Wifi: Stop Seek On & Display On - Brightness 1    | < 100 mA * |
-| No Wifi: Stop Seek On & Display Off after 30 sec     | < 100 mA * |
-
-My USB power tool refused to count when the current was below 0.1 A.  I'll redo these tests after I get a better tool.
+| Status: Modes                                        | Power usage |
+| ---------------------------------------------------- | ----------- |
+| Connected: Display On - Brightness 7                 | 147.13 mAh  |
+| Connected: Display On - Brightness 1                 | 126.66 mAh  |
+| Connected: Display Off after 5 min                   | 122.03 mAh  |
+| No Wifi: Stop Seek Off & Display On - Brightness 1   | 128.33 mAh  |
+| No Wifi: Stop Seek On & Display On - Brightness 1    | 73.35 mAh   |
+| No Wifi: Stop Seek On & Display Off after 30 sec     | 69.77 mAh   |
 
 
 ### LED Output
@@ -161,6 +159,13 @@ You could consider hosting the file on another machine in-house, too by using so
   js_include: ""
   js_url: "http://192.168.1.1/esphome-www/www.js"
 ```
+
+### Flip It!
+
+In the yaml files are notes how to flip your display and use it upside-down.  You should use a different `segment_mapping` as well.
+
+Be sure to check that the yaml file has `backward: true`.
+
 
 ## Alarms Version
 
@@ -234,6 +239,7 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2024.11.10 | TM1650 driver & YAMLs updated to allow upside-down display, OTA display status works, power measurements complete |
 | 2024.10.29 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
 | 2024.08.22 | Added `local: true` to non-HA version |
 | 2024.06.29 | Added Home Assistant version, major changes to main version, fixed time sync error |
@@ -270,7 +276,7 @@ Some RTTTL tunes: https://picaxe.com/rtttl-ringtones-for-tune-command/
 
 Buzzer13's TM1650 ESPHome component: https://github.com/buzzer13/esphome-components
 
-My fork (which includes a highly modified font): https://github.com/trip5/esphome-tm1650
+My fork (which includes a highly modified font) and backward function: https://github.com/trip5/esphome-tm1650
 
 ### DS1302 RTC
 

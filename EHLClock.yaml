@@ -3,7 +3,7 @@ substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
   comment: "EHLClock from Trip5"
-  project_version: "2024.10.29"
+  project_version: "2024.11.10"
   project_name: Trip5.EspHomeLedClock
   waiting: "EHLC" # shows when waiting for time
 
@@ -27,8 +27,16 @@ substitutions:
   segment_mapping: PGFEDCBA # Specific to the Sinilink XY-Clock
 #  segment_mapping: GBPEDCAF # Specific to 303WIFILC01
 #  TM1637 units which support the colon will work with any segment mapping (PM dot is ignored by the hardware)
-#  * Actually TM1637 doesn't use segment mapping but the routines that make the blinking colon depend on a segment_mapping being specified)
+#  * Actually TM1637 doesn't use segment mapping but the routines that make the blinking colon depend on the Sinilink segment_mapping being specified
 #  segment_mapping: PABCDEFG # normal TM1650 (untested)
+
+  backward: 'false'
+# Upside-down display? Use one of these and change above line to backward: 'true'
+#  segment_mapping: PDCBGFEA # Upside-down Sinilink XY-Clock
+#  segment_mapping: GDCABPEF # Upside-down 303WIFILC01
+#  segment_mapping: PDEFABCG # To use with TM1650 (untested)
+#  * if there is another segment_mapping to use, it's quite simple to change a regular mapping to an upside-down one...
+#  * The rule is actually fairly simple. Take 2nd, 3rd, 4th and switch with 5th, 6th, 7th in order (TM1650 pattern is easy: PABCDEFG -> PDEFABCG)
 
 # Sinilink Clock uses these pins for buttons
   down_button_pin: GPIO9
@@ -52,18 +60,18 @@ substitutions:
   time_sync_interval: "8" # How often to sync the RTC: 1 to 24 (hours)
 
 esphome:
-  name: $name
-  comment: "$comment"
+  name: ${name}
+  comment: "${comment}"
   project:
-    name: "$project_name"
-    version: "$project_version"
+    name: "${project_name}"
+    version: "${project_version}"
   min_version: 2023.11.0
   on_boot:
     - priority: 600
       then:
         - globals.set:
             id: segmentmap
-            value: !lambda 'return "$segment_mapping";'
+            value: !lambda 'return "${segment_mapping}";'
         - lambda: 'id(display_off) = false;'
 # The Sinilink uses a DS1307 RTC (supported by ESPHome)
         - ds1307.read_time:
@@ -71,10 +79,10 @@ esphome:
 #        - ds1302.read_time:
         - globals.set:
             id: sync_time
-            value: !lambda 'return $time_sync_interval;'
+            value: !lambda 'return ${time_sync_interval};'
         - globals.set:
             id: wifi_stop_seek_time
-            value: !lambda 'return ($wifi_stop_seek_time - 60);'
+            value: !lambda 'return (${wifi_stop_seek_time} - 60);'
     - priority: -100
       then:
         - wait_until:
@@ -84,7 +92,6 @@ esphome:
         - ds1307.write_time:
 # The 303 uses a DS1302 RTC
 #        - ds1302.write_time:
-
 
 esp8266:
   board: esp8285
@@ -97,7 +104,7 @@ wifi:
   enable_on_boot: True
   id: wifi_id
   ap:
-    ssid: $name
+    ssid: ${name}
     password: !secret ap_password
     ap_timeout: 10s # this has to be short, especially if using Stop Seek Wifi
   on_connect:
@@ -145,12 +152,12 @@ external_components:
 time:
   - platform: sntp # use SNTP as a time source
     id: my_time
-    timezone: "$time_zone"
+    timezone: "${time_zone}"
     update_interval: 24h # This seems like the longest safe amount of time - actual configured update happens in interval section
 
 # The Sinilink Clock uses a DS1307 RTC
   - platform: ds1307
-    timezone: "$time_zone"
+    timezone: "${time_zone}"
     update_interval: never
 
 # The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above DS1307 section if needed)
@@ -159,7 +166,7 @@ time:
 #    dio_pin: GPIO14
 #    clk_pin: GPIO16
 #    update_interval: never
-#    timezone: "$time_zone"
+#    timezone: "${time_zone}"
 
 script:
   - id: sync_the_time
@@ -205,25 +212,34 @@ logger:
 ota:
   - platform: esphome
     password: !secret ota_password
-    # a note here that for some reason these clocks seem unable to do a "pretty" OTA update
-    # but leaving the code here in hopes that it does work in the future
     on_begin:
       then:
-        - lambda: 'id(tm_display).print("OtA");'
+        - lambda: |-
+            id(message) = ("OtA");
+            id(message_alive_time) = 100;
+            id(message_display_time) = 100;
+            id(message_clock_time) = 0;
+            id(tm_display)->update();
         - logger.log: "OTA Update started."
     on_progress:
       then:
-        - lambda: 'id(tm_display).printf("%d", (int)x);'
+        - lambda: |-
+            id(message) = "=" + std::to_string((int)x) + "=";
+            if (x > 9) { id(tm_display)->update(); }
         - logger.log:
             format: "OTA progress %0.1f%%"
             args: ["x"]
     on_end:
       then:
-        - lambda: 'id(tm_display).print("done");'
+        - lambda: |-
+            id(message) = "done";
+            id(tm_display)->update();
         - logger.log: "OTA end"
     on_error:
       then:
-        - lambda: 'id(tm_display).print("Err");'
+        - lambda: |-
+            id(message) = "Eror";
+            id(tm_display)->update();
         - logger.log:
             format: "OTA update error %d"
             args: ["x"]
@@ -239,26 +255,26 @@ captive_portal:
 
 text_sensor:
   - platform: version
-    name: "$friendly_name ESPHome Version"
+    name: "${friendly_name} ESPHome Version"
     hide_timestamp: true
     entity_category: diagnostic
   - platform: wifi_info
     ip_address:
       id: wifi_ip
-      name: "$friendly_name IP Address"
+      name: "${friendly_name} IP Address"
       entity_category: diagnostic
     ssid:
       id: wifi_ssid
-      name: "$friendly_name SSID"
+      name: "${friendly_name} SSID"
       entity_category: diagnostic
   - platform: template
     name: "${friendly_name} ${project_name} Version"
-    lambda: 'return to_string("$project_version");'
+    lambda: 'return to_string("${project_version}");'
     entity_category: diagnostic
     update_interval: 1h
   - platform: template
-    name: "$friendly_name Time Zone"
-    lambda: 'return {"$time_zone"};'
+    name: "${friendly_name} Time Zone"
+    lambda: 'return {"${time_zone}"};'
     entity_category: diagnostic
     update_interval: 1h
 
@@ -266,7 +282,7 @@ output:
   - platform: esp8266_pwm
     id: statusled
     pin:
-      number: $status_led_pin
+      number: ${status_led_pin}
       inverted: true
 
 light:
@@ -276,18 +292,18 @@ light:
     output: statusled
     internal: true
 
-# Sinilink has 2 LEDs and this will remap the 2nd LED as a status LED but its blinking can be distracting so I've commented it out / 303 Clock can't use it anyway
+# Sinilink has 2 LEDs and this will remap the 2nd LED as a status LED but its blinking can be distracting so I've commented it out / 303 Clock can't use it
 #status_led:
 #  pin:
-#    number: $other_led_pin
+#    number: ${other_led_pin}
 #    inverted: true
 
 preferences:
   flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended) (only saves when persistent variables have changed)
 
 i2c:
-  sda: $sda_pin
-  scl: $scl_pin
+  sda: ${sda_pin}
+  scl: ${scl_pin}
   scan: true
   id: i2cbus
   
@@ -295,13 +311,13 @@ i2c:
 # Also, some info how to handle multi_click options: https://community.home-assistant.io/t/esphome-button-held-double-press/136083/10
 binary_sensor:
   - platform: status
-    name: "$friendly_name Status"
+    name: "${friendly_name} Status"
   - platform: gpio
     pin:
-      number: $up_button_pin
+      number: ${up_button_pin}
       inverted: true # Sinilink true / 303 true
       mode: INPUT_PULLUP
-    name: "$friendly_name Up button"
+    name: "${friendly_name} Up button"
     filters:
       - delayed_on: 10ms
       - delayed_off: 10ms
@@ -331,10 +347,10 @@ binary_sensor:
               - switch.toggle: wifi_stop_seek_select       
   - platform: gpio
     pin:
-      number: $down_button_pin
+      number: ${down_button_pin}
       inverted: true # Sinilink true / 303 false
       mode: INPUT_PULLUP
-    name: "$friendly_name Down button"
+    name: "${friendly_name} Down button"
     filters:
       - delayed_on: 10ms
       - delayed_off: 10ms
@@ -364,9 +380,9 @@ binary_sensor:
               - switch.toggle: tzoffset_on_select
   - platform: gpio
     pin: 
-      number: $set_button_pin
+      number: ${set_button_pin}
       inverted: true # Sinilink true / 303 true
-    name: "$friendly_name Set button"
+    name: "${friendly_name} Set button"
     filters:
       - delayed_on: 10ms
       - delayed_off: 10ms
@@ -398,11 +414,12 @@ display:
     id: tm_display
     update_interval: 1s
     length: 4
-    segment_map: $segment_mapping
+    backward: ${backward}
+    segment_map: ${segment_mapping}
     i2c_id: i2cbus
     # TM1637: remove the above 2 lines and uncomment the next 2 lines
-    # clk_pin: $clk_pin
-    # dio_pin: $dio_pin
+    # clk_pin: ${clk_pin}
+    # dio_pin: ${dio_pin}
     # If you are using either the Sinilink or 303, there should be no need to edit anything inside this lambda below!
     lambda: |-
       // Display the message if all conditions are met
@@ -528,7 +545,7 @@ display:
           }
         }
       } else {
-        it.print("$waiting");
+        it.print("${waiting}");
       }
       // This next bit handles the display_off stuff
       if (id(display_off)) {
@@ -736,7 +753,7 @@ globals:
 button:
   - platform: restart
     id: restart_button
-    name: "$friendly_name Restart"
+    name: "${friendly_name} Restart"
     entity_category: diagnostic
   - platform: template
     id: display_ip
@@ -784,7 +801,7 @@ button:
 
 switch:
   - platform: template
-    name: "$friendly_name 12 Hour Mode"
+    name: "${friendly_name} 12 Hour Mode"
     id: hour12_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: 'return id(hour12_mode);'
@@ -797,7 +814,7 @@ switch:
             ESP_LOGD("main", "12 Hour Mode Off");
             id(hour12_mode) = false;
   - platform: template
-    name: "$friendly_name Date Display US Mode (DDMM)"
+    name: "${friendly_name} Date Display US Mode (DDMM)"
     id: date_display_mode_us_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: 'return id(date_display_mode_us);'
@@ -810,7 +827,7 @@ switch:
             ESP_LOGD("main", "Date Display US Mode Off");
             id(date_display_mode_us) = false;
   - platform: template
-    name: "$friendly_name Time Zone Offset On"
+    name: "${friendly_name} Time Zone Offset On"
     id: tzoffset_on_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: 'return id(tzoffset_on);'
@@ -823,7 +840,7 @@ switch:
             ESP_LOGD("main", "Time Zone Offset Off");
             id(tzoffset_on) = false;
   - platform: template
-    name: "$friendly_name Date Display Mode"
+    name: "${friendly_name} Date Display Mode"
     id: date_mode_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: 'return id(date_display_mode);'
@@ -844,7 +861,7 @@ switch:
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
   - platform: template
-    name: "$friendly_name Wifi Stop Seek"
+    name: "${friendly_name} Wifi Stop Seek"
     id: wifi_stop_seek_select
     restore_mode: RESTORE_DEFAULT_OFF
     lambda: 'return id(wifi_stop_seek);'
@@ -869,7 +886,7 @@ switch:
 
 select:
   - platform: template
-    name: "$friendly_name Colon Blink (0=Off / 1=On / 2=Always On)"
+    name: "${friendly_name} Colon Blink (0=Off / 1=On / 2=Always On)"
     id: blink_option_select
     restore_value: true
     optimistic: true
@@ -886,7 +903,7 @@ select:
 
 number:
   - platform: template
-    name: "$friendly_name Brightness"
+    name: "${friendly_name} Brightness"
     id: brightness_select
     restore_value: true
     optimistic: true
@@ -901,7 +918,7 @@ number:
             id(brightness_level) = x;
             ESP_LOGD("main", "Brightness: %d", id(brightness_level));
   - platform: template
-    name: "$friendly_name Time Display Time"
+    name: "${friendly_name} Time Display Time"
     id: time_display_time_select
     restore_value: true
     optimistic: true
@@ -917,7 +934,7 @@ number:
             id(time_display_time) = x;
             ESP_LOGD("main", "Time Display Time: %d seconds", id(time_display_time));
   - platform: template
-    name: "$friendly_name Date Display Time"
+    name: "${friendly_name} Date Display Time"
     id: date_display_time_select
     restore_value: true
     optimistic: true
@@ -933,7 +950,7 @@ number:
             id(date_display_time) = x;
             ESP_LOGD("main", "Date Display Time: %d seconds", id(date_display_time));
   - platform: template
-    name: "$friendly_name Time Zone Offset"
+    name: "${friendly_name} Time Zone Offset"
     id: tzoffset_select
     restore_value: true
     optimistic: true
@@ -949,7 +966,7 @@ number:
             id(tzoffset) = x;
             ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
   - platform: template
-    name: "$friendly_name Display Off Time (minutes) (0 Disable)"
+    name: "${friendly_name} Display Off Time (minutes) (0 Disable)"
     id: display_off_time_select
     restore_value: true
     optimistic: true
@@ -964,7 +981,7 @@ number:
             ESP_LOGD("main", "Display Off Time: %d minutes", id(display_off_time));
         - script.execute: display_off_deactivate
   - platform: template
-    name: "$friendly_name Display Off When No Wifi Time (seconds) (0 Disable)"
+    name: "${friendly_name} Display Off When No Wifi Time (seconds) (0 Disable)"
     id: display_off_no_wifi_time_select
     restore_value: true
     optimistic: true

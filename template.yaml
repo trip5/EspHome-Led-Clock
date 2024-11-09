@@ -6,7 +6,10 @@
       state: "OK"
       attributes:
         # The numbered attributes (0 to 9) are info screens
-        0: "{{ states('sensor.room_temperature') | round(1) | default('NA-') }}C"
+        1:>
+          {%- if states('sensor.inside_temperature') not in ['unavailable', 'unknown'] -%}
+            {{ states('sensor.inside_temperature') | float | round(0) }}~C
+          {%- endif %}
 
 # This style is for a sensor that relies on at least one service call (ie. for weather) - you can still use simple/derivative sensors
 
@@ -28,4 +31,9 @@
         # The numbered attributes (0 to 9) are info screens
         0: >
           to{{ hourly["weather.openweathermap_hourly"].forecast[0].temperature | round(0) | default('NA') }}
-        1: "ti{{ states('sensor.room_temperature') | round(0) | default('NA') }}"
+        1:>
+          {%- if states('sensor.inside_temperature') not in ['unavailable', 'unknown'] -%}
+            ti{{ states('sensor.inside_temperature') | float | round(0) }}
+          {%- endif %}
+
+# Note that for 1: Inside temperature, it checks to see if it is available, otherwise it is blank - and the clock will skip over blanks!
