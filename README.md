@@ -169,13 +169,14 @@ Be sure to check that the yaml file has `backward: true`.
 
 ## Alarms Version
 
-This regular version of the clock can play the alarm at configurable intervals.  The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune.
+The file [`EHLClock-Alarms.yaml`](EHLClock-Alarms.yaml) contains all of the functions as the regular version but can also play an
+alarm at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune.
 The 303 does not, so stick to one of the other versions.
 
-It has all of the same functions as the above version but a few options have to be hard-coded into the YAML instead of available as selectable options.
-This is because the ESP8266 has severe memory constraints and the alarm functionality and WebUI both cause a lot of strain on the device.
+It has all of the same functions as the above version but a few options are hard-coded into the YAML instead of available as selectable options.
+This is because the ESP8266 has severe memory constraints and adding alarm options to the already-burdened WebUI causes it to crash.
 
-See below for more information regarding the speaker.
+See below for more information regarding the speaker and how to play tunes.
 
 ## Home Assistant Version
 
