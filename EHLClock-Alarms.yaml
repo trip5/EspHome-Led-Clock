@@ -470,8 +470,8 @@ display:
     segment_map: ${segment_mapping}
     i2c_id: i2cbus
     # TM1637: remove the above 3 lines and uncomment the next 2 lines
-    # clk_pin: $clk_pin
-    # dio_pin: $dio_pin
+    # clk_pin: ${clk_pin}
+    # dio_pin: ${dio_pin}
     # For most 7-segment displays, there should be no need to edit anything inside this lambda below!
     lambda: |-
       // Display the message if all conditions are met
