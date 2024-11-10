@@ -564,8 +564,14 @@ display:
                   if (id(segmentmap) == "GBPEDCAF") {
                     min_b.append("."); // the 303 can have a decimal after the 4th digit to indicate PM
                   }
+                  if (id(segmentmap) == "GDCABPEF") {
+                    hour_a.append("."); // the 303 can have a decimal after the 4th digit to indicate PM (flipped!)
+                  }
                   if (id(segmentmap) == "PGFEDCBA") {
                     hour_b.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM
+                  }
+                  if (id(segmentmap) == "PDCBGFEA") {
+                    min_a.append("."); // the Sinilink can have a decimal after the 2nd digit to indicate PM (flipped!)
                   }
                 }
               } else {
@@ -578,9 +584,16 @@ display:
                 if (id(segmentmap) == "GBPEDCAF") {
                   hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
                 }
+                if (id(segmentmap) == "GDCABPEF") {
+                  min_a.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon (flipped!)
+                }
                 if (id(segmentmap) == "PGFEDCBA") {
                   min_a.append(".");
                   min_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon
+                }
+                if (id(segmentmap) == "PDCBGFEA") {
+                  hour_a.append(".");
+                  hour_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon (flipped!)
                 }
               }
               it.print(0, hour_a.c_str());

@@ -702,7 +702,7 @@ display:
                   hour_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon
                 }
                 if (id(segmentmap) == "GDCABPEF") {
-                  min_b.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon (flipped!)
+                  min_a.append("."); // the 303 requires a period between the 2nd and 3rd digit to activate the colon (flipped!)
                 }
                 if (id(segmentmap) == "PGFEDCBA") {
                   min_a.append(".");
@@ -719,7 +719,6 @@ display:
               it.print(2, min_a.c_str());
               it.print(3, min_b.c_str());
             }
-
             if (((id(date_display_count) >= id(date_display_time)) && (id(date_display_mode) != false)) || ((id(time_display_count) >= id(time_display_time)) && (id(date_display_mode) == false))) {
               id(time_display_count) = 0;
               // check if Sensor Data Stop is active 
@@ -727,7 +726,6 @@ display:
                 id(ha_sensor_data_now) = true;
               }
             }
-
           }
         }
       } else {
