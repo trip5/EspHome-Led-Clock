@@ -250,6 +250,8 @@ ota:
     on_begin:
       then:
         - lambda: |-
+            id(display_off_time_count) = 0;
+            id(display_off) = false;
             id(message) = ("OtA");
             id(message_alive_time) = 100;
             id(message_display_time) = 100;
@@ -259,6 +261,8 @@ ota:
     on_progress:
       then:
         - lambda: |-
+            id(display_off_time_count) = 0;
+            id(display_off) = false;
             id(message) = "=" + std::to_string((int)x) + "=";
             if (x > 9) { id(tm_display)->update(); }
         - logger.log:
@@ -267,12 +271,16 @@ ota:
     on_end:
       then:
         - lambda: |-
+            id(display_off_time_count) = 0;
+            id(display_off) = false;
             id(message) = "done";
             id(tm_display)->update();
         - logger.log: "OTA end"
     on_error:
       then:
         - lambda: |-
+            id(display_off_time_count) = 0;
+            id(display_off) = false;
             id(message) = "Eror";
             id(tm_display)->update();
         - logger.log:
