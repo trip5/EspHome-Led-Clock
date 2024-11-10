@@ -26,9 +26,8 @@ substitutions:
 # Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
   segment_mapping: PGFEDCBA # Specific to the Sinilink XY-Clock
 #  segment_mapping: GBPEDCAF # Specific to 303WIFILC01
-#  TM1637 units which support the colon will work with any segment mapping (PM dot is ignored by the hardware)
-#  * Actually TM1637 doesn't use segment mapping but the routines that make the blinking colon depend on the Sinilink segment_mapping being specified
-#  segment_mapping: PABCDEFG # normal TM1650 (untested)
+# TM1637 units don't actually use segment mapping but the routines that make the colon blink depend on it being specified (PM dot is ignored by the hardware)
+#  segment_mapping: PABCDEFG # TM1637 / normal TM1650 (untested, may not support colon or decimals)
 
   backward: 'false'
 # Upside-down display? Use one of these and change above line to backward: 'true'
@@ -594,6 +593,9 @@ display:
                 if (id(segmentmap) == "PDCBGFEA") {
                   hour_a.append(".");
                   hour_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon (flipped!)
+                }
+                if (id(segmentmap) == "PABCDEFG") {
+                  hour_b.append("."); // the TM1637 requires a period between the 2nd and 3rd digit to activate the colon
                 }
               }
               it.print(0, hour_a.c_str());
