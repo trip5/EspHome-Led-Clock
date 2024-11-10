@@ -123,7 +123,6 @@ The other is to turn off the display when there is no Wifi connection (in second
 | No Wifi: Stop Seek On & Display On - Brightness 1    | 73.35 mAh   |
 | No Wifi: Stop Seek On & Display Off after 30 sec     | 69.77 mAh   |
 
-
 ### LED Output
 
 While the clock is attempting to connect to wifi or while in hotspot mode, the blue LED will pulse on and off every 1 second.

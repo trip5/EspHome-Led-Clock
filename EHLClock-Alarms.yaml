@@ -215,13 +215,11 @@ script:
     mode: restart
     then:
       - lambda: |-
-          ESP_LOGD("main", "Display Off activated");
           id(display_off) = true;
   - id: display_off_deactivate
     mode: restart
     then:
       - lambda: |-
-          ESP_LOGD("main", "Display Off deactivated");
           id(display_off_time_count) = 0;
           id(display_off) = false;
 
@@ -613,12 +611,14 @@ display:
           }
         }
       } else {
-        it.print("${waiting}");
+        if (!id(display_off)) {
+          it.print("${waiting}");
+        }
       }
       // This next bit handles the display_off stuff
       if (id(display_off)) {
         it.print(0, "    ");
-        it.set_intensity(0);
+        it.intensity(0);
       } else {
         it.set_intensity(id(brightness_level));
       }
