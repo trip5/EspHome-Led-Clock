@@ -661,10 +661,10 @@ interval:
               call.perform();
           }
           if (id(my_time).now().is_valid() && !id(display_off)) {
-            if ((id(display_off_no_wifi_time) != 0 && (!id(wifi_id).is_connected() || id(wifi_id).is_disabled())) || id(display_off_time) != 0) {
+            if (id(display_off_no_wifi_time) != 0 || id(display_off_time) != 0) {
               id(display_off_time_count) = id(display_off_time_count) + 1;
             }
-            if ((id(display_off_time) != 0 && id(display_off_time_count) >= (id(display_off_time) * 60)) || (id(display_off_no_wifi_time) != 0 && id(display_off_time_count) >= id(display_off_no_wifi_time))) {
+            if ((id(display_off_time) != 0 && id(display_off_time_count) >= (id(display_off_time) * 60)) || (id(display_off_no_wifi_time) != 0 && id(display_off_time_count) >= id(display_off_no_wifi_time) && (!id(wifi_id).is_connected() || id(wifi_id).is_disabled()))) {
               id(display_off_activate).execute();
             }
           }
@@ -802,7 +802,7 @@ globals:
     restore_value: true
     initial_value: '0'
   - id: display_off_time_count
-    type: uint8_t
+    type: uint16_t
     restore_value: false
     initial_value: '0'
   - id: display_off_no_wifi_time
