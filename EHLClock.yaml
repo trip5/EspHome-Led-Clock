@@ -55,7 +55,7 @@ substitutions:
 #  status_led_pin: GPIO2
 
 # Hard-coded variables (removed from UI because of memory constraints)
-  wifi_stop_seek_time: "60" # How many seconds to give up trying to connect to Wifi: 60 to 315 (do not go outside these numbers)
+  wifi_stop_seek_time: "180" # How many seconds to give up trying to connect to Wifi: 60 to 315 (do not go outside these numbers)
   time_sync_interval: "8" # How often to sync the RTC: 1 to 24 (hours)
 
 esphome:
