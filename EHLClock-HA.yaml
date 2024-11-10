@@ -712,7 +712,6 @@ display:
                   hour_a.append(".");
                   hour_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon (flipped!)
                 }
-
               }
               it.print(0, hour_a.c_str());
               it.print(1, hour_b.c_str());
