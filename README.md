@@ -162,6 +162,8 @@ You could consider hosting the file on another machine in-house, too by using so
   js_include: ""
   js_url: "http://192.168.1.1/esphome-www/www.js"
 ```
+Please note that for some reason, I'm not sure that the UI can be viewed from an Chrome-based mobile browser. Maybe my phone has an issue.
+It seems to work fine when viewing on a computer or an Apple phone. If you have information to share, I'd be glad to know why this is.
 
 ### Flip It!
 
@@ -169,17 +171,11 @@ In the yaml files are notes how to flip your display and use it upside-down.  Yo
 
 Be sure to check that the yaml file has `backward: true`.
 
+## Alarms
 
-## Alarms Version
+The clock can play alarms at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune. The 303 does not.
 
-The file [`EHLClock-Alarms.yaml`](EHLClock-Alarms.yaml) contains all of the functions as the regular version but can also play an
-alarm at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune.
-The 303 does not, so stick to one of the other versions.
-
-It has all of the same functions as the above version but a few options are hard-coded into the YAML instead of available as selectable options.
-This is because the ESP8266 has severe memory constraints and adding alarm options to the already-burdened WebUI causes it to crash.
-
-See below for more information regarding the speaker and how to play tunes.
+Please note the default YAML has 2 alarms available and 3 tunes.  See below for more information regarding the speaker and how to play tunes.
 
 ## Home Assistant Version
 
@@ -243,6 +239,7 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2024.12.09 | Recoded to remove many global variables, relying on numbers and switches where possible, hard-coded variables removed, alarms version re-integrated into main version |
 | 2024.11.10 | TM1650 driver & YAMLs updated to allow upside-down display, OTA display status works, power measurements complete |
 | 2024.10.29 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
 | 2024.08.22 | Added `local: true` to non-HA version |
@@ -270,7 +267,7 @@ ESPHome's Display: https://esphome.io/components/display/index.html
 
 ### Speaker Notes
 
-If you plan to build your own and want a speaker, get a passive one.  Active ones are a pain to get working with ESPHome.
+If you plan to build your own and want a speaker, get a passive one like the KY-006.  Active ones are a pain to get working with ESPHome.
 
 About the Rtttl Buzzer: https://esphome.io/components/rtttl.html
 

@@ -1,10 +1,9 @@
 # My github: https://github.com/trip5
-
 substitutions:
   name:  xy-clock-white
   friendly_name: XY-Clock-White
   comment: "EHLClock-HA from Trip5"
-  project_version: "2024.11.10"
+  project_version: "2024.12.09"
   project_name: Trip5.EspHomeLedClock-HA
   waiting: "EHLC" # shows when waiting for time
 
@@ -61,6 +60,15 @@ substitutions:
 # The 303 only has 1 LED (uncomment next line and delete the above 4 lines)
 #  status_led_pin: GPIO2
 
+# The following are for the tunes played by the alarm through the passive piezo speaker / buzzer on the Sinilink clock - remove if not needed
+# You can check here: https://picaxe.com/rtttl-ringtones-for-tune-command/ or Search for "RTTTL tunes" to change the tunes
+  tune1_name: "Siren"
+  tune1: "siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e"
+  tune2_name: "Scale Up"
+  tune2: "scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b"
+  tune3_name: "Death"
+  tune3: "death:d=4,o=5,b=100:c.,c,8c,c.,d#,8d,d,8c,c,8c,2c."
+
 esphome:
   name: ${name}
   comment: "${comment}"
@@ -74,6 +82,11 @@ esphome:
         - globals.set:
             id: segmentmap
             value: !lambda 'return "${segment_mapping}";'
+        - if:
+            condition:
+              - switch.is_on: tz_alt
+            then:
+              - switch.turn_on: tz_alt
 # The Sinilink uses a DS1307 RTC (supported by ESPHome)
         - ds1307.read_time:
 # The 303 uses a DS1302 RTC (will also require an external component)
@@ -148,32 +161,6 @@ time:
 #    update_interval: never
 #    timezone: "${time_zone}"
 
-# Check if alarms need to be played (needs to be under whichever Platform has the ID, preferably the RTC or SNTP?)
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the entire section
-# If you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed
-    on_time:
-      - seconds: 0
-        minutes: /1 # repeat every minute
-        then:
-        - lambda: |-
-            std::time_t tz1time = (id(my_time).now().timestamp);
-            std::tm *tz1time_astm = localtime(&tz1time);
-            int tzhr = tz1time_astm->tm_hour;
-            int tzmin = tz1time_astm->tm_min;
-            if (id(alarms_on) == true && id(alarm1_hour) == tzhr && id(alarm1_min) == tzmin) {
-              // need to put all alarm tunes that exist nested here
-              if (id(alarm1_tune) == 1) { id(tune1).press(); };
-              if (id(alarm1_tune) == 2) { id(tune2).press(); };
-              if (id(alarm1_tune) == 3) { id(tune3).press(); };
-            };
-            // if you add an alarm3, duplicate and edit the entire next 'if'
-            if (id(alarms_on) == true && id(alarm2_hour) == tzhr && id(alarm2_min) == tzmin) {
-              // need to put all alarm tunes that exist nested here
-              if (id(alarm2_tune) == 1) { id(tune1).press(); };
-              if (id(alarm2_tune) == 2) { id(tune2).press(); };
-              if (id(alarm2_tune) == 3) { id(tune3).press(); };
-            };
-
 script:
   - id: sync_the_time
     mode: restart
@@ -184,15 +171,28 @@ script:
 # The 303 Clock uses a DS1302 RTC (uncomment this and delete the other if needed)
 #      - ds1302.write_time:
 
-interval:
-  - interval: 1min # check if the time should be synced, and if so, do it
+# The script that actually plays the alarms - if you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed - remove if not needed
+  - id: check_alarms
+    mode: restart
     then:
       - lambda: |-
-          id(sync_time_count) += 1;
-          if (id(sync_time_count) >= (id(sync_time) * 60)) {
-            id(sync_time_count) = 0;
-            id(sync_the_time).execute();
-          }
+          std::time_t tz1time = (id(my_time).now().timestamp);
+          std::tm *tz1time_astm = localtime(&tz1time);
+          int tzhr = tz1time_astm->tm_hour;
+          int tzmin = tz1time_astm->tm_min;
+          if (id(alarms_on).state == true && id(alarm1_hour).state == tzhr && id(alarm1_min).state == tzmin) {
+            // need to put all alarm tunes that exist nested here
+            if (id(alarm1_tune).state == 1) { id(tune1).press(); };
+            if (id(alarm1_tune).state == 2) { id(tune2).press(); };
+            if (id(alarm1_tune).state == 3) { id(tune3).press(); };
+          };
+          // if you add an alarm3, duplicate and edit the entire next 'if' (and edit as needed)
+          if (id(alarms_on).state == true && id(alarm2_hour).state == tzhr && id(alarm2_min).state == tzmin) {
+            // need to put all alarm tunes that exist nested here
+            if (id(alarm2_tune).state == 1) { id(tune1).press(); };
+            if (id(alarm2_tune).state == 2) { id(tune2).press(); };
+            if (id(alarm2_tune).state == 3) { id(tune3).press(); };
+          };
 
 # The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section
 api:
@@ -239,19 +239,29 @@ api:
             args: [ 'message_alive_time', 'message_display_time' , 'message_clock_time' ]
 
 mdns:
-  disabled: false
+  disabled: False
 
-# Enable logging (and stops the various sensors/switches from spamming the log)
-# Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing
 logger:
-  level: DEBUG
-  logs:
-    sensor: ERROR
-    text_sensor: NONE
-    switch: NONE
-    light: NONE
-    number: NONE
-    rtttl: NONE
+  level: NONE
+# Logging is disabled to save memory but you can easily enable logging (and stop the various sensors/switches from spamming the log) by deleting the above line and uncommening the lines below
+# Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing - please note it's also disabled in the web_server section
+#  level: DEBUG
+#  logs:
+#    sensor: ERROR
+#    text_sensor: NONE
+#    switch: NONE
+#    light: NONE
+#    number: NONE
+#    rtttl: NONE
+
+# Web Server is disabled due to memory constraints.  Enable at your own risk (consider removing captive_portal, logging to save memory)
+#web_server:
+#  port: 80
+#  ota: True
+#  include_internal: False # True will expose more than needed to the Web UI
+#  version: 2 # version 3 is much larger but possible if local is False
+#  local: True # will download www.js and serve it directly from the clock
+#  log: False # disabling in the WebUI to save memory
 
 ota:
   - platform: esphome
@@ -288,18 +298,12 @@ ota:
             format: "OTA update error %d"
             args: ["x"]
 
-#Web Server is disabled due to memory constraints.  Enable at your own risk (consider removing captive_portal, reducing fonts to 1 to save memory)
-#web_server:
-#  port: 80
-#  ota: true
-#  include_internal: true # probably not necessary, as it will expose more than needed to the Web UI
-
 captive_portal:
 
 text_sensor:
   - platform: version
     name: "${friendly_name} ESPHome Version"
-    hide_timestamp: true
+    hide_timestamp: True
     entity_category: diagnostic
   - platform: wifi_info
     ip_address:
@@ -367,24 +371,28 @@ output:
     id: statusled
     pin:
       number: ${status_led_pin}
-      inverted: true
+      inverted: True
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 3 lines
   - platform: esp8266_pwm
     pin: ${buzzer_pin}
     id: rtttl_out
+
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 2 lines
+rtttl:
+  output: rtttl_out
 
 light:
   - platform: monochromatic
     id: led1
     name: "LED"
     output: statusled
-    internal: true
+    internal: True
 
 # Sinilink has 2 LEDs and this will remap the 2nd LED as a status LED but its blinking can be distracting so I've commented it out / 303 Clock can't use it
 #status_led:
 #  pin:
 #    number: ${other_led_pin}
-#    inverted: true
+#    inverted: True
 
 preferences:
   flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended) (only saves when persistent variables have changed)
@@ -392,7 +400,7 @@ preferences:
 i2c:
   sda: ${sda_pin}
   scl: ${scl_pin}
-  scan: true
+  scan: True
   id: i2cbus
   
 # Check this section carefully!
@@ -403,7 +411,7 @@ binary_sensor:
   - platform: gpio
     pin:
       number: ${up_button_pin}
-      inverted: true # Sinilink true / 303 true
+      inverted: True # Sinilink true / 303 true
       mode: INPUT_PULLUP
     name: "${friendly_name} Up button"
     filters:
@@ -415,16 +423,16 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - number.increment: brightness_select
+          - number.increment: brightness
       #Hold UP will toggle enable or disable alarms / delete this part if Alarms don't exist anywhere else (the 303 Clock)
       - timing:
           - ON for at least 1s
         then:
-          - switch.toggle: alarms_select
+          - switch.toggle: alarms_on
   - platform: gpio
     pin:
       number: ${down_button_pin}
-      inverted: true # Sinilink true / 303 false
+      inverted: True # Sinilink true / 303 false
       mode: INPUT_PULLUP
     name: "${friendly_name} Down button"
     filters:
@@ -436,16 +444,16 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - number.decrement: brightness_select
+          - number.decrement: brightness
       #Hold DOWN will select enable or disable alt time zone
       - timing:
           - ON for at least 1s
         then:
-          - switch.toggle: tz_alt_select
+          - switch.toggle: tz_alt
   - platform: gpio
     pin: 
       number: ${set_button_pin}
-      inverted: true # Sinilink true / 303 true
+      inverted: True # Sinilink true / 303 true
     name: "${friendly_name} Set button"
     filters:
       - delayed_on: 10ms
@@ -456,21 +464,12 @@ binary_sensor:
           - ON for at most 0.5s
           - OFF for at least 0.5s
         then:
-          - switch.toggle: hour12_select
-      #Hold SET 1s will toggle HA Sensors Data Stop
+          - switch.toggle: hour12_mode
+      #Hold SET will toggle HA Sensors Data Stop
       - timing:
           - ON for at least 1s
         then:
-          - switch.toggle: ha_sensor_data_stop_select
-      #Hold SET 5s will toggle HA Sensors Data All
-      - timing:
-          - ON for at least 5s
-        then:
-          - switch.toggle: ha_sensor_data_all_select
-
-# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 2 lines
-rtttl:
-  output: rtttl_out
+          - switch.toggle: ha_sensor_data_stop
 
 # This section contains a lot of lambda code... if using the Sinilink or 303, you shouldn't have to edit this at all
 # If using something else, you may need to edit the segmentmap sections (conveniently 'if' sections), depending on how the decimals/colons are handled
@@ -575,7 +574,7 @@ display:
             }
             if (id(ha_sensor_data_this) == 9) {
               if (id(ha_sensor_data_9).state.empty()) {
-                if (id(ha_sensor_data_all) == false) {
+                if (id(ha_sensor_data_all).state == false) {
                   id(ha_sensor_data_this) = 0;
                   sensor_data_text = id(ha_sensor_data_0).state.c_str();
                 }
@@ -585,11 +584,11 @@ display:
             }
             if (sensor_data_text != "") {
               id(ha_sensor_data_this_time) += 1;
-              if ((id(ha_sensor_data_this_time) >= (id(ha_sensor_data_time))) && (id(ha_sensor_data_all) == true)) {
+              if ((id(ha_sensor_data_this_time) >= (id(ha_sensor_data_time).state)) && (id(ha_sensor_data_all).state == true)) {
                 id(ha_sensor_data_this_time) = 0;
                 id(ha_sensor_data_this) += 1;
               }
-              if ((id(ha_sensor_data_this_time) > (id(ha_sensor_data_time))) && (id(ha_sensor_data_all) == false)) { // was just > but... 2 seconds either way?
+              if ((id(ha_sensor_data_this_time) > (id(ha_sensor_data_time).state)) && (id(ha_sensor_data_all).state == false)) { // was just > but... 2 seconds either way?
                 id(ha_sensor_data_this_time) = 0;
                 id(ha_sensor_data_this) += 1;
                 id(ha_sensor_data_now) = false ; // we needed to buy 1 second if this mode is on
@@ -601,7 +600,7 @@ display:
               id(ha_sensor_data_this) = 0;
               id(ha_sensor_data_this_time) = 0;
             }
-            if ((id(ha_sensor_data_this) == 9) && (id(ha_sensor_data_all) == true)) {
+            if ((id(ha_sensor_data_this) == 9) && (id(ha_sensor_data_all).state == true)) {
               id(ha_sensor_data_this) = false;
               id(ha_sensor_data_now) = false;
             }
@@ -616,7 +615,7 @@ display:
             std::time_t tz1time = (id(my_time).now().timestamp);
             std::tm *tz1time_astm = localtime(&tz1time);
             // check if the date should be displayed
-            if ((id(time_display_count) >= (id(time_display_time))) && (id(date_display_mode) != false)) {
+            if ((id(time_display_count) >= (id(time_display_time).state)) && (id(date_display_mode).state != false)) {
               id(date_display_count) += 1;
               // display date
               int tzmon = (tz1time_astm->tm_mon) + 1;
@@ -635,7 +634,7 @@ display:
                 mday_b = mday_a;
                 mday_a = "0";
               }
-              if (id(date_display_mode_us) != false) {
+              if (id(date_display_mode_us).state != false) {
                 it.print(0, mday_a.c_str());
                 it.print(1, mday_b.c_str());
                 it.print(2, mon_a.c_str());
@@ -662,7 +661,7 @@ display:
                 min_b = min_a;
                 min_a = "0";
               }
-              if (id(hour12_mode) == true) {
+              if (id(hour12_mode).state == true) {
                 if (tzhr > 12) {
                   timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
                   hour_a = (timeh_text.substr(0,1).c_str());
@@ -712,7 +711,7 @@ display:
                   hour_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon (flipped!)
                 }
                 if (id(segmentmap) == "PABCDEFG") {
-                  hour_b.append("."); // the TM1637 requires a period between the 2nd and 3rd digit to activate the colon
+                  hour_b.append("."); // the TM1637 requires a period between the 2nd and 3rd digit to activate the colon (flipped can't do it)
                 }
               }
               it.print(0, hour_a.c_str());
@@ -720,10 +719,10 @@ display:
               it.print(2, min_a.c_str());
               it.print(3, min_b.c_str());
             }
-            if (((id(date_display_count) >= id(date_display_time)) && (id(date_display_mode) != false)) || ((id(time_display_count) >= id(time_display_time)) && (id(date_display_mode) == false))) {
+            if (((id(date_display_count) >= id(date_display_time).state) && (id(date_display_mode).state != false)) || ((id(time_display_count) >= id(time_display_time).state) && (id(date_display_mode).state == false))) {
               id(time_display_count) = 0;
               // check if Sensor Data Stop is active 
-              if (id(ha_sensor_data_stop) == false) {
+              if (id(ha_sensor_data_stop).state == false) {
                 id(ha_sensor_data_now) = true;
               }
             }
@@ -732,160 +731,97 @@ display:
       } else {
         it.print("${waiting}");
       }
-      id(tm_display)->set_intensity(id(brightness_level));
+      it.set_intensity(id(brightness).state);
+
+
+interval:
+  - interval: 1min # check if the time should be synced, and if so, do it
+    then:
+      - lambda: |-
+          id(sync_time_count) += 1;
+          if (id(sync_time_count) >= (id(sync_time).state * 60)) {
+            id(sync_time_count) = 0;
+            id(sync_the_time).execute();
+          }
 
 globals:
-  - id: brightness_level
-    type: int
-    restore_value: true
-    initial_value: '1'
-  - id: hour12_mode
-    type: bool
-    restore_value: true
-    initial_value: 'false'
   - id: message
     type: std::string
-    restore_value: false
+    restore_value: False
     initial_value: ''
   - id: message_display_time
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_clock_time
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_alive_time
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_display_time_count
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_clock_time_count
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_alive_time_count
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: segmentmap
     type: std::string
-    restore_value: false
+    restore_value: False
     initial_value: ''
   - id: IPAddressA
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: IPAddressB
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: IPAddressC
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: IPAddressD
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
-  - id: alarms_on
-    type: bool
-    restore_value: true
-    initial_value: 'false'
   - id: blink_option
     type: int
-    restore_value: true
+    restore_value: True
     initial_value: '1'
-  - id: date_display_mode
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: date_display_mode_us
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: time_display_time
-    type: int
-    restore_value: true
-    initial_value: '8'
-  - id: date_display_time
-    type: int
-    restore_value: true
-    initial_value: '2'
   - id: time_display_count
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: date_display_count
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
-  - id: sync_time
-    type: int
-    restore_value: true
-    initial_value: '8'
   - id: sync_time_count
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
+# HA Sensors variables
   - id: ha_sensor_data_this
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: ha_sensor_data_this_time
     type: int
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: ha_sensor_data_now
     type: bool
-    restore_value: false
+    restore_value: False
     initial_value: 'false'
-  - id: ha_sensor_data_all
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: ha_sensor_data_stop
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: ha_sensor_data_time
-    type: int
-    restore_value: true
-    initial_value: '2'
-# Alt Time Zone variable
-  - id: tz_alt
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-# Alarms Variables (edit as needed, each alarm requires 3 variables) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 25 lines
-  - id: alarm1_tune
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: alarm1_hour
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: alarm1_min
-    type: int
-    restore_value: true
-    initial_value: '0'
-# Alarm 2 variables (if adding more, copy and paste the next 12 lines, and edit it properly... (ie. alarm2_tune -> alarm3_tune, alarm2_hour -> alarm3_hour, alarm2_min -> alarm3_min, etc.)
-  - id: alarm2_tune
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: alarm2_hour
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: alarm2_min
-    type: int
-    restore_value: true
-    initial_value: '0'
 
 button:
   - platform: restart
@@ -896,62 +832,57 @@ button:
 # Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 21 lines
   - platform: template
     id: tune1
-    name: "Tune 1: Siren"
-    internal: true
+    name: "Tune 1: ${tune1_name}"
+    internal: False
     on_press:
-      - logger.log: "Playing Tune 1"
-      - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e'
+      - logger.log: "Playing ${tune1_name}"
+      - rtttl.play: "${tune1}"
   - platform: template
     id: tune2
-    name: "Tune 2: Scale Up"
-    internal: true
+    name: "Tune 2: ${tune2_name}"
+    internal: False
     on_press:
-      - logger.log: "Playing Tune 2"
-      - rtttl.play: 'scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b'
+      - logger.log: "Playing ${tune2_name}"
+      - rtttl.play: "${tune2}"
   - platform: template
     id: tune3
-    name: "Tune 3: Death"
-    internal: true
+    name: "Tune 3: ${tune3_name}"
+    internal: False
     on_press:
-      - logger.log: "Playing Tune 3"
-      - rtttl.play: "death:d=4,o=5,b=100:c.,c,8c,c.,d#,8d,d,8c,c,8c,2c."
+      - logger.log: "Playing ${tune3_name}"
+      - rtttl.play: "${tune3}"
 
 switch:
   - platform: template
     name: "${friendly_name} 12 Hour Mode"
-    id: hour12_select
+    id: hour12_mode
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(hour12_mode);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "12 Hour Mode On");
-            id(hour12_mode) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "12 Hour Mode Off");
-            id(hour12_mode) = false;
   - platform: template
     name: "${friendly_name} Date Display US Mode (DDMM)"
-    id: date_display_mode_us_select
+    id: date_display_mode_us
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(date_display_mode_us);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "Date Display US Mode On");
-            id(date_display_mode_us) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "Date Display US Mode Off");
-            id(date_display_mode_us) = false;
   - platform: template
     name: "${friendly_name} Date Display Mode"
-    id: date_mode_select
+    id: date_display_mode
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(date_display_mode);'
+    optimistic: True
     turn_on_action:
         - logger.log: "Date Display Mode On"
         - lambda: |-
-            id(date_display_mode) = true;
             id(message) = ("dton");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
@@ -959,43 +890,38 @@ switch:
     turn_off_action:
         - logger.log: "Date Display Mode Off"
         - lambda: |-
-            id(date_display_mode) = false;
             id(message) = ("doff");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
   - platform: template
     name: "${friendly_name} HA Sensors Data All"
-    id: ha_sensor_data_all_select
+    id: ha_sensor_data_all
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(ha_sensor_data_all);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "HA Sensors Data All On");
-            id(ha_sensor_data_all) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "HA Sensors Data All Off");
-            id(ha_sensor_data_all) = false;
   - platform: template
     name: "${friendly_name} HA Sensors Data Stop"
-    id: ha_sensor_data_stop_select
+    id: ha_sensor_data_stop
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(ha_sensor_data_stop);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "HA Sensors Data Stop On");
-            id(ha_sensor_data_stop) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "HA Sensors Data Stop Off");
-            id(ha_sensor_data_stop) = false;
 # Alt Time Zone selector / activator
   - platform: template
     name: "${friendly_name} Alternate Time (${time_zone_alt_name})"
-    id: tz_alt_select
+    id: tz_alt
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(tz_alt);'
+    optimistic: True
     turn_on_action:
         - delay: 1s
         - logger.log: "Alt Time Zone on: ${time_zone_alt_name}"
@@ -1004,7 +930,6 @@ switch:
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
-            id(tz_alt) = true;
             id(my_time)->set_timezone("${time_zone_alt}");
             id(my_time_ds)->set_timezone("${time_zone_alt}");
             id(my_time)->call_setup();
@@ -1016,22 +941,20 @@ switch:
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
-            id(tz_alt) = false;
             id(my_time)->set_timezone("${time_zone}");
             id(my_time_ds)->set_timezone("${time_zone}");
             id(my_time)->call_setup();
 
 # Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
-# If using the 303 Clock or another with no piezo speaker, delete the next 26 lines
+# If using the 303 Clock or another with no piezo speaker, delete the next 19 lines
   - platform: template
     name: "${friendly_name} Alarms On"
-    id: alarms_select
+    id: alarms_on
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(alarms_on);'
+    optimistic: True
     turn_on_action:
         - logger.log: "Alarms On"
         - lambda: |-
-            id(alarms_on) = true;
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
@@ -1039,7 +962,6 @@ switch:
     turn_off_action:
         - logger.log: "Alarms Off"
         - lambda: |-
-            id(alarms_on) = false;
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
@@ -1049,8 +971,8 @@ select:
   - platform: template
     name: "${friendly_name} Colon Blink (0=Off / 1=On / 2=Always On)"
     id: blink_option_select
-    restore_value: true
-    optimistic: true
+    restore_value: True
+    optimistic: True
     options:
       - '0'
       - '1'
@@ -1065,9 +987,9 @@ select:
 number:
   - platform: template
     name: "${friendly_name} Brightness"
-    id: brightness_select
-    restore_value: true
-    optimistic: true
+    id: brightness
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 8
@@ -1076,13 +998,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(brightness_level) = x;
-            ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+            ESP_LOGD("main", "Brightness: %.0f", x);
   - platform: template
     name: "${friendly_name} Time Display Time"
-    id: time_display_time_select
-    restore_value: true
-    optimistic: true
+    id: time_display_time
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 1
     max_value: 60
@@ -1092,13 +1013,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(time_display_time) = x;
-            ESP_LOGD("main", "Time Display Time: %d seconds", id(time_display_time));
+            ESP_LOGD("main", "Time Display Time: %.0f seconds", x);
   - platform: template
     name: "${friendly_name} Date Display Time"
-    id: date_display_time_select
-    restore_value: true
-    optimistic: true
+    id: date_display_time
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 1
     max_value: 60
@@ -1108,44 +1028,46 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(date_display_time) = x;
-            ESP_LOGD("main", "Date Display Time: %d seconds", id(date_display_time));
+            ESP_LOGD("main", "Date Display Time: %.0f seconds", x);
   - platform: template
-    name: "${friendly_name} Time Sync Interval (hours)"
-    id: sync_time_select
-    restore_value: true
-    optimistic: true
+    name: "${friendly_name} Time Sync Interval"
+    id: sync_time
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 1
     max_value: 24
+    initial_value: 8
     mode: box
+    unit_of_measurement: hours
     set_action:
       then:
         - lambda: |-
-            id(sync_time) = x;
-            ESP_LOGD("main", "Time Sync Interval (hours): %d", id(sync_time));
+            ESP_LOGD("main", "Time Sync Interval: %.0f hours", x);
   - platform: template
-    name: "${friendly_name} HA Sensor Data Time (seconds)"
-    id: ha_sensor_data_time_select
-    restore_value: true
-    optimistic: true
+    name: "${friendly_name} HA Sensor Data Time"
+    id: ha_sensor_data_time
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 1
     max_value: 10
+    initial_value: 2
     mode: box
+    unit_of_measurement: seconds
     set_action:
       then:
         - lambda: |-
-            id(ha_sensor_data_time) = x;
-            ESP_LOGD("main", "HA Sensor Data Time: %d seconds", id(ha_sensor_data_time));
+            ESP_LOGD("main", "HA Sensor Data Time: %.0f seconds", x);
 
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end.
 # Alarms UI Selector (each alarm requires tune/hour/min selectors)
 # Alarm 1 UI Selector Begins
   - platform: template
     name: "${friendly_name} Alarm 1 Tune (0=Off)"
-    restore_value: true
-    optimistic: true
+    id: alarm1_tune
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 3 # set this to how many alarms you have available
@@ -1154,12 +1076,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(alarm1_tune) = x;
-            ESP_LOGD("main", "Alarm 1 Tune: %d", id(alarm1_tune));
+            ESP_LOGD("main", "Alarm 1 Tune: %.0f", x);
   - platform: template
     name: "${friendly_name} Alarm 1 Hour"
-    restore_value: true
-    optimistic: true
+    id: alarm1_hour
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 23
@@ -1169,12 +1091,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(alarm1_hour) = x;
-            ESP_LOGD("main", "Alarm 1 Hour: %d", id(alarm1_hour));
+            ESP_LOGD("main", "Alarm 1 Hour: %.0f", x);
   - platform: template
     name: "${friendly_name} Alarm 1 Minutes"
-    restore_value: true
-    optimistic: true
+    id: alarm1_min
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 59
@@ -1184,16 +1106,16 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(alarm1_min) = x;
-            ESP_LOGD("main", "Alarm 1 Minutes: %d", id(alarm1_min));
+            ESP_LOGD("main", "Alarm 1 Minutes: %.0f", x);
 
 # If you require more alarms, copy from the next line to the end, paste, and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
-# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (up to 3 have been tested)
+# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (only 2 have been tested but you could probably get 3 or 4
 # Alarm 2 UI Selector Begins
   - platform: template
     name: "${friendly_name} Alarm 2 Tune (0=Off)"
-    restore_value: true
-    optimistic: true
+    id: alarm2_tune
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 3 # set this to how many alarms you have available
@@ -1202,12 +1124,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(alarm2_tune) = x;
-            ESP_LOGD("main", "Alarm 2 Tune: %d", id(alarm2_tune));
+            ESP_LOGD("main", "Alarm 2 Tune: %.0f", x);
   - platform: template
     name: "${friendly_name} Alarm 2 Hour"
-    restore_value: true
-    optimistic: true
+    id: alarm2_hour
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 23
@@ -1217,12 +1139,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(alarm2_hour) = x;
-            ESP_LOGD("main", "Alarm 2 Hour: %d", id(alarm2_hour));
+            ESP_LOGD("main", "Alarm 2 Hour: %.0f", x);
   - platform: template
     name: "${friendly_name} Alarm 2 Minutes"
-    restore_value: true
-    optimistic: true
+    id: alarm2_min
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 59
@@ -1232,5 +1154,4 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(alarm2_min) = x;
-            ESP_LOGD("main", "Alarm 2 Minutes: %d", id(alarm2_min));
+            ESP_LOGD("main", "Alarm 2 Minutes: %.0f", x);

@@ -3,7 +3,7 @@ substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
   comment: "EHLClock from Trip5"
-  project_version: "2024.11.10"
+  project_version: "2024.12.09"
   project_name: Trip5.EspHomeLedClock
   waiting: "EHLC" # shows when waiting for time
 
@@ -54,9 +54,14 @@ substitutions:
 # The 303 only has 1 LED (uncomment next line and delete the above 4 lines)
 #  status_led_pin: GPIO2
 
-# Hard-coded variables (removed from UI because of memory constraints)
-  wifi_stop_seek_time: "60" # How many seconds to give up trying to connect to Wifi: 60 to 315 (do not go outside these numbers)
-  time_sync_interval: "8" # How often to sync the RTC: 1 to 24 (hours)
+# The following are for the tunes played by the alarm through the passive piezo speaker / buzzer on the Sinilink clock - remove if not needed
+# You can check here: https://picaxe.com/rtttl-ringtones-for-tune-command/ or Search for "RTTTL tunes" to change the tunes
+  tune1_name: "Siren"
+  tune1: "siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e"
+  tune2_name: "Scale Up"
+  tune2: "scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b"
+  tune3_name: "Death"
+  tune3: "death:d=4,o=5,b=100:c.,c,8c,c.,d#,8d,d,8c,c,8c,2c."
 
 esphome:
   name: ${name}
@@ -76,12 +81,6 @@ esphome:
         - ds1307.read_time:
 # The 303 uses a DS1302 RTC (will also require an external component)
 #        - ds1302.read_time:
-        - globals.set:
-            id: sync_time
-            value: !lambda 'return ${time_sync_interval};'
-        - globals.set:
-            id: wifi_stop_seek_time
-            value: !lambda 'return (${wifi_stop_seek_time} - 60);'
     - priority: -100
       then:
         - wait_until:
@@ -117,7 +116,7 @@ wifi:
   on_disconnect:
     - if:
         condition:
-          - lambda: 'return (id(wifi_stop_seek) == true);'
+          - switch.is_on: wifi_stop_seek
         then:
           - logger.log: "Wifi disconnected - will be disabled soon (stop seek is on)..."
         else:
@@ -153,6 +152,12 @@ time:
     id: my_time
     timezone: "${time_zone}"
     update_interval: 24h # This seems like the longest safe amount of time - actual configured update happens in interval section
+# Check if alarms need to be played (needs to be under whichever platform is my_time) - remove next 5 lines if alarms are not needed
+    on_time:
+      - seconds: 0
+        minutes: /1 # repeat every minute
+        then:
+          - script.execute: check_alarms
 
 # The Sinilink Clock uses a DS1307 RTC
   - platform: ds1307
@@ -190,23 +195,59 @@ script:
           id(display_off_time_count) = 0;
           id(display_off) = false;
 
+# The script that actually plays the alarms - if you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed - remove if not needed
+  - id: check_alarms
+    mode: restart
+    then:
+      - lambda: |-
+          int offset = 0;
+          if (id(tzoffset_on).state != false) {
+            offset = (int)(60*60*(id(tzoffset).state));
+          }
+          std::time_t tz1time = (id(my_time).now().timestamp+offset);
+          std::tm *tz1time_astm = localtime(&tz1time);
+          int tzhr = tz1time_astm->tm_hour;
+          int tzmin = tz1time_astm->tm_min;
+          if (id(alarms_on).state == true && id(alarm1_hour).state == tzhr && id(alarm1_min).state == tzmin) {
+            // need to put all alarm tunes that exist nested here
+            if (id(alarm1_tune).state == 1) { id(tune1).press(); };
+            if (id(alarm1_tune).state == 2) { id(tune2).press(); };
+            if (id(alarm1_tune).state == 3) { id(tune3).press(); };
+          };
+          // if you add an alarm3, duplicate and edit the entire next 'if' (and edit as needed)
+          if (id(alarms_on).state == true && id(alarm2_hour).state == tzhr && id(alarm2_min).state == tzmin) {
+            // need to put all alarm tunes that exist nested here
+            if (id(alarm2_tune).state == 1) { id(tune1).press(); };
+            if (id(alarm2_tune).state == 2) { id(tune2).press(); };
+            if (id(alarm2_tune).state == 3) { id(tune3).press(); };
+          };
+
 api:
   reboot_timeout: 0s # Must be disabled to allow the Wifi enable/disable to function
 
 mdns:
-  disabled: false
+  disabled: False
 
-# Enable logging (and stops the various sensors/switches from spamming the log)
-# Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing
 logger:
-  level: DEBUG
-  logs:
-    sensor: ERROR
-    text_sensor: NONE
-    switch: NONE
-    light: NONE
-    number: NONE
-    rtttl: NONE
+  level: NONE
+# Logging is disabled to save memory but you can easily enable logging (and stop the various sensors/switches from spamming the log) by deleting the above line and uncommening the lines below
+# Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing - please note it's also disabled in the web_server section
+#  level: DEBUG
+#  logs:
+#    sensor: ERROR
+#    text_sensor: NONE
+#    switch: NONE
+#    light: NONE
+#    number: NONE
+#    rtttl: NONE
+
+web_server:
+  port: 80
+  ota: True
+  include_internal: False # True will expose more than needed to the Web UI
+  version: 2 # version 3 is much larger but possible if local is False
+  local: True # will download www.js and serve it directly from the clock
+  log: False # disabling in the WebUI to save memory
 
 ota:
   - platform: esphome
@@ -251,19 +292,12 @@ ota:
             format: "OTA update error %d"
             args: ["x"]
 
-web_server:
-  port: 80
-  ota: true
-  include_internal: false
-  version: 2
-  local: true # will download www.js and serve it directly from the clock
-
 captive_portal:
 
 text_sensor:
   - platform: version
     name: "${friendly_name} ESPHome Version"
-    hide_timestamp: true
+    hide_timestamp: True
     entity_category: diagnostic
   - platform: wifi_info
     ip_address:
@@ -290,20 +324,28 @@ output:
     id: statusled
     pin:
       number: ${status_led_pin}
-      inverted: true
+      inverted: True
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 3 lines
+  - platform: esp8266_pwm
+    pin: ${buzzer_pin}
+    id: rtttl_out
+
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 2 lines
+rtttl:
+  output: rtttl_out
 
 light:
   - platform: monochromatic
     id: led1
     name: "LED"
     output: statusled
-    internal: true
+    internal: True
 
 # Sinilink has 2 LEDs and this will remap the 2nd LED as a status LED but its blinking can be distracting so I've commented it out / 303 Clock can't use it
 #status_led:
 #  pin:
 #    number: ${other_led_pin}
-#    inverted: true
+#    inverted: True
 
 preferences:
   flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended) (only saves when persistent variables have changed)
@@ -311,7 +353,7 @@ preferences:
 i2c:
   sda: ${sda_pin}
   scl: ${scl_pin}
-  scan: true
+  scan: True
   id: i2cbus
   
 # Check this section carefully!
@@ -322,7 +364,7 @@ binary_sensor:
   - platform: gpio
     pin:
       number: ${up_button_pin}
-      inverted: true # Sinilink true / 303 true
+      inverted: True # Sinilink true / 303 true
       mode: INPUT_PULLUP
     name: "${friendly_name} Up button"
     filters:
@@ -340,7 +382,7 @@ binary_sensor:
             then:
               - script.execute: display_off_deactivate
             else:
-              - number.increment: brightness_select
+              - number.increment: brightness
       #Hold UP will toggle the wifi timeout
       - timing:
           - ON for at least 1s
@@ -351,11 +393,11 @@ binary_sensor:
             then:
               - script.execute: display_off_deactivate
             else:
-              - switch.toggle: wifi_stop_seek_select       
+              - switch.toggle: wifi_stop_seek
   - platform: gpio
     pin:
       number: ${down_button_pin}
-      inverted: true # Sinilink true / 303 false
+      inverted: True # Sinilink true / 303 false
       mode: INPUT_PULLUP
     name: "${friendly_name} Down button"
     filters:
@@ -373,7 +415,7 @@ binary_sensor:
             then:
               - script.execute: display_off_deactivate
             else:
-              - number.decrement: brightness_select
+              - number.decrement: brightness
       #Hold DOWN will select enable or disable time zone offset
       - timing:
           - ON for at least 1s
@@ -384,11 +426,11 @@ binary_sensor:
             then:
               - script.execute: display_off_deactivate
             else:
-              - switch.toggle: tzoffset_on_select
+              - switch.toggle: tzoffset_on
   - platform: gpio
     pin: 
       number: ${set_button_pin}
-      inverted: true # Sinilink true / 303 true
+      inverted: True # Sinilink true / 303 true
     name: "${friendly_name} Set button"
     filters:
       - delayed_on: 10ms
@@ -405,7 +447,7 @@ binary_sensor:
             then:
               - script.execute: display_off_deactivate
             else:
-              - switch.toggle: hour12_select
+              - switch.toggle: hour12_mode
       #Hold SET will show the IP Address
       - timing:
           - ON for at least 1s
@@ -453,13 +495,13 @@ display:
             static int blinking = false;
             // apply offset if needed https://community.home-assistant.io/t/multiple-time-zones/435315/12
             int offset = 0;
-            if (id(tzoffset_on) != false) {
-              offset = (int)(60*60*(id(tzoffset)));
+            if (id(tzoffset_on).state != false) {
+              offset = (int)(60*60*(id(tzoffset).state));
             }
             std::time_t tz1time = (id(my_time).now().timestamp + offset);
             std::tm *tz1time_astm = localtime(&tz1time);
             // check if the date should be displayed
-            if ((id(time_display_count) >= (id(time_display_time))) && (id(date_display_mode) != false)) {
+            if ((id(time_display_count) >= (id(time_display_time).state)) && (id(date_display_mode).state != false)) {
               id(date_display_count) += 1;
               // display date
               int tzmon = (tz1time_astm->tm_mon) + 1;
@@ -478,7 +520,7 @@ display:
                 mday_b = mday_a;
                 mday_a = "0";
               }
-              if (id(date_display_mode_us) != false) {
+              if (id(date_display_mode_us).state != false) {
                 it.print(0, mday_a.c_str());
                 it.print(1, mday_b.c_str());
                 it.print(2, mon_a.c_str());
@@ -489,7 +531,7 @@ display:
                 it.print(2, mday_a.c_str());
                 it.print(3, mday_b.c_str());
               }
-              if (id(date_display_count) >= id(date_display_time)) {
+              if (id(date_display_count) >= id(date_display_time).state) {
                 id(time_display_count) = 0;
               }
             } else {
@@ -508,7 +550,7 @@ display:
                 min_b = min_a;
                 min_a = "0";
               }
-              if (id(hour12_mode) == true) {
+              if (id(hour12_mode).state == true) {
                 if (tzhr > 12) {
                   timeh_text = std::to_string((tz1time_astm->tm_hour) - 12);
                   hour_a = (timeh_text.substr(0,1).c_str());
@@ -558,7 +600,7 @@ display:
                   hour_b.append("."); // the Sinilink requires periods after the 3rd and 4th digits to activate the colon (flipped!)
                 }
                 if (id(segmentmap) == "PABCDEFG") {
-                  hour_b.append("."); // the TM1637 requires a period between the 2nd and 3rd digit to activate the colon
+                  hour_b.append("."); // the TM1637 requires a period between the 2nd and 3rd digit to activate the colon (flipped can't do it)
                 }
               }
               it.print(0, hour_a.c_str());
@@ -575,9 +617,9 @@ display:
       // This next bit handles the display_off stuff
       if (id(display_off)) {
         it.print(0, "    ");
-        it.intensity(0);
+        it.set_intensity(0);
       } else {
-        it.set_intensity(id(brightness_level));
+        it.set_intensity(id(brightness).state);
       }
 
 interval:
@@ -585,7 +627,7 @@ interval:
     then:
       - lambda: |-
           id(sync_time_count) += 1;
-          if (id(sync_time_count) >= (id(sync_time) * 60)) {
+          if (id(sync_time_count) >= (id(sync_time).state * 60)) {
             id(sync_time_count) = 0;
             if (id(wifi_id).is_connected()) {
               id(sync_the_time).execute();
@@ -594,22 +636,22 @@ interval:
   - interval: 1s # check if the wifi should be turned off, and if so, do it (or turn on if stop seek has been disabled) and blink led while seeking wifi
     then:
       - lambda: |-
-          if (id(wifi_stop_seek) == true && !id(wifi_id).is_connected() && !id(wifi_id).is_disabled()){
+          if (id(wifi_stop_seek).state == true && !id(wifi_id).is_connected() && !id(wifi_id).is_disabled()){
             id(wifi_stop_seek_time_count) += 1;
-            if (id(wifi_stop_seek_time_count) >= id(wifi_stop_seek_time) + 60) {
+            if (id(wifi_stop_seek_time_count) >= id(wifi_stop_seek_time).state) {
               id(wifi_stop_seek_time_count) = 0;
               id(wifi_id)->disable();
               id(display_ip).press();
             }
           }
-          if (id(wifi_stop_seek) == false && id(wifi_id).is_disabled()) {
+          if (id(wifi_stop_seek).state == false && id(wifi_id).is_disabled()) {
             id(wifi_stop_seek_time_count) = 0;
             id(wifi_id)->enable();
             id(display_ip).press();
           }
           if (!id(wifi_id).is_connected() && !id(wifi_id).is_disabled()) {
             id(seek_blink_led) += 1;
-            if (id(wifi_stop_seek) == false) {
+            if (id(wifi_stop_seek).state == false) {
               if (id(seek_blink_led) % 1 == 0) {
                 auto call = id(led1).toggle();
                 call.perform();
@@ -626,153 +668,96 @@ interval:
               call.perform();
           }
           if (id(my_time).now().is_valid() && !id(display_off)) {
-            if (id(display_off_no_wifi_time) != 0 || id(display_off_time) != 0) {
+            if (id(display_off_no_wifi_time).state != 0 || id(display_off_time).state != 0) {
               id(display_off_time_count) = id(display_off_time_count) + 1;
             }
-            if ((id(display_off_time) != 0 && id(display_off_time_count) >= (id(display_off_time) * 60)) || (id(display_off_no_wifi_time) != 0 && id(display_off_time_count) >= id(display_off_no_wifi_time) && (!id(wifi_id).is_connected() || id(wifi_id).is_disabled()))) {
+            if ((id(display_off_time).state != 0 && id(display_off_time_count) >= (id(display_off_time).state * 60)) || (id(display_off_no_wifi_time).state != 0 && id(display_off_time_count) >= id(display_off_no_wifi_time).state && (!id(wifi_id).is_connected() || id(wifi_id).is_disabled()))) {
               id(display_off_activate).execute();
             }
           }
 
 globals:
-  - id: brightness_level
-    type: uint8_t
-    restore_value: true
-    initial_value: '1'
-  - id: hour12_mode
-    type: bool
-    restore_value: true
-    initial_value: 'false'
   - id: message
     type: std::string
-    restore_value: false
+    restore_value: False
     initial_value: ''
   - id: message_display_time
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_clock_time
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_alive_time
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_display_time_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_clock_time_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: message_alive_time_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: segmentmap
     type: std::string
-    restore_value: false
+    restore_value: False
     initial_value: ''
   - id: IPAddressA
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: IPAddressB
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: IPAddressC
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: IPAddressD
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
-  - id: alarms_on
-    type: bool
-    restore_value: true
-    initial_value: 'false'
   - id: blink_option
     type: uint8_t
-    restore_value: true
+    restore_value: True
     initial_value: '1'
-  - id: date_display_mode
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: date_display_mode_us
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: time_display_time
-    type: uint8_t
-    restore_value: true
-    initial_value: '8'
-  - id: date_display_time
-    type: uint8_t
-    restore_value: true
-    initial_value: '2'
   - id: time_display_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: date_display_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
-  - id: sync_time
-    type: uint8_t
-    restore_value: false
-    initial_value: '8'
   - id: sync_time_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
-# TZ Offset Variables
-  - id: tzoffset
-    type: int8_t
-    restore_value: true
-    initial_value: '0'
-  - id: tzoffset_on
-    type: bool
-    restore_value: true
-    initial_value: 'false'
 # Wifi Stop Seek Variables
-  - id: wifi_stop_seek
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: wifi_stop_seek_time
-    type: uint8_t
-    restore_value: false
-    initial_value: '120'
   - id: wifi_stop_seek_time_count
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
   - id: seek_blink_led
     type: uint8_t
-    restore_value: false
+    restore_value: False
     initial_value: '0'
 # Display Off Variables
   - id: display_off
     type: bool
-    restore_value: false
+    restore_value: False
     initial_value: 'false'
-  - id: display_off_time
-    type: uint8_t
-    restore_value: true
-    initial_value: '0'
   - id: display_off_time_count
     type: uint16_t
-    restore_value: false
-    initial_value: '0'
-  - id: display_off_no_wifi_time
-    type: uint8_t
-    restore_value: true
+    restore_value: False
     initial_value: '0'
 
 button:
@@ -783,7 +768,7 @@ button:
   - platform: template
     id: display_ip
     name: "Display IP Address"
-    internal: true
+    internal: True
     on_press:
       - if:
           condition:
@@ -824,55 +809,71 @@ button:
                 id(message_alive_time) = 0;
                 id(message_display_time) = 0;
 
+# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 21 lines
+  - platform: template
+    id: tune1
+    name: "Tune 1: ${tune1_name}"
+    internal: False
+    on_press:
+      - logger.log: "Playing ${tune1_name}"
+      - rtttl.play: "${tune1}"
+  - platform: template
+    id: tune2
+    name: "Tune 2: ${tune2_name}"
+    internal: False
+    on_press:
+      - logger.log: "Playing ${tune2_name}"
+      - rtttl.play: "${tune2}"
+  - platform: template
+    id: tune3
+    name: "Tune 3: ${tune3_name}"
+    internal: False
+    on_press:
+      - logger.log: "Playing ${tune3_name}"
+      - rtttl.play: "${tune3}"
+
 switch:
   - platform: template
     name: "${friendly_name} 12 Hour Mode"
-    id: hour12_select
+    id: hour12_mode
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(hour12_mode);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "12 Hour Mode On");
-            id(hour12_mode) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "12 Hour Mode Off");
-            id(hour12_mode) = false;
   - platform: template
     name: "${friendly_name} Date Display US Mode (DDMM)"
-    id: date_display_mode_us_select
+    id: date_display_mode_us
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(date_display_mode_us);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "Date Display US Mode On");
-            id(date_display_mode_us) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "Date Display US Mode Off");
-            id(date_display_mode_us) = false;
   - platform: template
     name: "${friendly_name} Time Zone Offset On"
-    id: tzoffset_on_select
+    id: tzoffset_on
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(tzoffset_on);'
+    optimistic: True
     turn_on_action:
         - lambda: |-
             ESP_LOGD("main", "Time Zone Offset On");
-            id(tzoffset_on) = true;
     turn_off_action:
         - lambda: |-
             ESP_LOGD("main", "Time Zone Offset Off");
-            id(tzoffset_on) = false;
   - platform: template
     name: "${friendly_name} Date Display Mode"
-    id: date_mode_select
+    id: date_display_mode
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(date_display_mode);'
+    optimistic: True
     turn_on_action:
         - logger.log: "Date Display Mode On"
         - lambda: |-
-            id(date_display_mode) = true;
             id(message) = ("dton");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
@@ -880,21 +881,19 @@ switch:
     turn_off_action:
         - logger.log: "Date Display Mode Off"
         - lambda: |-
-            id(date_display_mode) = false;
             id(message) = ("doff");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
   - platform: template
     name: "${friendly_name} Wifi Stop Seek"
-    id: wifi_stop_seek_select
+    id: wifi_stop_seek
     restore_mode: RESTORE_DEFAULT_OFF
-    lambda: 'return id(wifi_stop_seek);'
+    optimistic: True
     turn_on_action:
         - delay: 1s
         - logger.log: "Wifi Stop Seek On"
         - lambda: |-
-            id(wifi_stop_seek) = true;
             id(message) = ("stop");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
@@ -903,18 +902,39 @@ switch:
         - delay: 1s
         - logger.log: "Wifi Stop Seek Off"
         - lambda: |-
-            id(wifi_stop_seek) = false;
             id(message) = ("seeH");
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
 
+# Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
+# If using the 303 Clock or another with no piezo speaker, delete the next 19 lines
+  - platform: template
+    name: "${friendly_name} Alarms On"
+    id: alarms_on
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: True
+    turn_on_action:
+        - logger.log: "Alarms On"
+        - lambda: |-
+            id(message_alive_time) = 1;
+            id(message_display_time) = 1;
+            id(message_clock_time) = 0;
+            id(message) = ("ALon");
+    turn_off_action:
+        - logger.log: "Alarms Off"
+        - lambda: |-
+            id(message_alive_time) = 1;
+            id(message_display_time) = 1;
+            id(message_clock_time) = 0;
+            id(message) = ("Aoff");
+
 select:
   - platform: template
     name: "${friendly_name} Colon Blink (0=Off / 1=On / 2=Always On)"
     id: blink_option_select
-    restore_value: true
-    optimistic: true
+    restore_value: True
+    optimistic: True
     options:
       - '0'
       - '1'
@@ -929,9 +949,9 @@ select:
 number:
   - platform: template
     name: "${friendly_name} Brightness"
-    id: brightness_select
-    restore_value: true
-    optimistic: true
+    id: brightness
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 0
     max_value: 8
@@ -940,13 +960,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(brightness_level) = x;
-            ESP_LOGD("main", "Brightness: %d", id(brightness_level));
+            ESP_LOGD("main", "Brightness: %.0f", x);
   - platform: template
     name: "${friendly_name} Time Display Time"
-    id: time_display_time_select
-    restore_value: true
-    optimistic: true
+    id: time_display_time
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 1
     max_value: 60
@@ -956,13 +975,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(time_display_time) = x;
-            ESP_LOGD("main", "Time Display Time: %d seconds", id(time_display_time));
+            ESP_LOGD("main", "Time Display Time: %.0f seconds", x);
   - platform: template
     name: "${friendly_name} Date Display Time"
-    id: date_display_time_select
-    restore_value: true
-    optimistic: true
+    id: date_display_time
+    restore_value: True
+    optimistic: True
     step: 1
     min_value: 1
     max_value: 60
@@ -972,13 +990,12 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(date_display_time) = x;
-            ESP_LOGD("main", "Date Display Time: %d seconds", id(date_display_time));
+            ESP_LOGD("main", "Date Display Time: %.0f seconds", x);
   - platform: template
     name: "${friendly_name} Time Zone Offset"
-    id: tzoffset_select
-    restore_value: true
-    optimistic: true
+    id: tzoffset
+    restore_value: True
+    optimistic: True
     step: 0.25
     min_value: -26
     max_value: 26
@@ -988,35 +1005,162 @@ number:
     set_action:
       then:
         - lambda: |-
-            id(tzoffset) = x;
-            ESP_LOGD("main", "Time Zone Offset: %.2f", id(tzoffset));
+            ESP_LOGD("main", "Time Zone Offset: %.2f hours", x);
   - platform: template
-    name: "${friendly_name} Display Off Time (minutes) (0 Disable)"
-    id: display_off_time_select
-    restore_value: true
-    optimistic: true
+    name: "${friendly_name} Time Sync Interval"
+    id: sync_time
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 1
+    max_value: 24
+    initial_value: 8
+    mode: box
+    unit_of_measurement: hours
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Time Sync Interval: %.0f hours", x);
+  - platform: template
+    name: "${friendly_name} Wifi Stop Seek Time"
+    id: wifi_stop_seek_time
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 1
+    max_value: 60
+    initial_value: 180
+    mode: box
+    unit_of_measurement: seconds
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Wifi Stop Seek Time: %.0f seconds", x);
+  - platform: template
+    name: "${friendly_name} Display Off Time (0 Disable)"
+    id: display_off_time
+    restore_value: True
+    optimistic: True
     step: 5
     min_value: 0
     max_value: 60
+    initial_value: 0
     mode: box
+    unit_of_measurement: minutes
     set_action:
       then:
         - lambda: |-
-            id(display_off_time) = x;
-            ESP_LOGD("main", "Display Off Time: %d minutes", id(display_off_time));
+            ESP_LOGD("main", "Display Off Time: %.0f minutes", x);
         - script.execute: display_off_deactivate
   - platform: template
     name: "${friendly_name} Display Off When No Wifi Time (seconds) (0 Disable)"
-    id: display_off_no_wifi_time_select
-    restore_value: true
-    optimistic: true
+    id: display_off_no_wifi_time
+    restore_value: True
+    optimistic: True
     step: 5
     min_value: 0
     max_value: 180
+    initial_value: 60
+    mode: box
+    unit_of_measurement: seconds
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Display Off No Wifi Time: %.0f seconds", x);
+        - script.execute: display_off_deactivate
+
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end.
+# Alarms UI Selector (each alarm requires tune/hour/min selectors)
+# Alarm 1 UI Selector Begins
+  - platform: template
+    name: "${friendly_name} Alarm 1 Tune (0=Off)"
+    id: alarm1_tune
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 0
+    max_value: 3 # set this to how many alarms you have available
+    initial_value: 0
     mode: box
     set_action:
       then:
         - lambda: |-
-            id(display_off_no_wifi_time) = x;
-            ESP_LOGD("main", "Display Off No Wifi Time: %d seconds", id(display_off_no_wifi_time));
-        - script.execute: display_off_deactivate
+            ESP_LOGD("main", "Alarm 1 Tune: %.0f", x);
+  - platform: template
+    name: "${friendly_name} Alarm 1 Hour"
+    id: alarm1_hour
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 0
+    max_value: 23
+    initial_value: 0
+    mode: box
+    unit_of_measurement: hours
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Alarm 1 Hour: %.0f", x);
+  - platform: template
+    name: "${friendly_name} Alarm 1 Minutes"
+    id: alarm1_min
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 0
+    max_value: 59
+    initial_value: 0
+    mode: box
+    unit_of_measurement: minutes
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Alarm 1 Minutes: %.0f", x);
+
+# If you require more alarms, copy from the next line to the end, paste, and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
+# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (only 2 have been tested but you could probably get 3 or 4
+# Alarm 2 UI Selector Begins
+  - platform: template
+    name: "${friendly_name} Alarm 2 Tune (0=Off)"
+    id: alarm2_tune
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 0
+    max_value: 3 # set this to how many alarms you have available
+    initial_value: 0
+    mode: box
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Alarm 2 Tune: %.0f", x);
+  - platform: template
+    name: "${friendly_name} Alarm 2 Hour"
+    id: alarm2_hour
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 0
+    max_value: 23
+    initial_value: 0
+    mode: box
+    unit_of_measurement: hours
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Alarm 2 Hour: %.0f", x);
+  - platform: template
+    name: "${friendly_name} Alarm 2 Minutes"
+    id: alarm2_min
+    restore_value: True
+    optimistic: True
+    step: 1
+    min_value: 0
+    max_value: 59
+    initial_value: 0
+    mode: box
+    unit_of_measurement: minutes
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Alarm 2 Minutes: %.0f", x);
