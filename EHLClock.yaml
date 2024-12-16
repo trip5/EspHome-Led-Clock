@@ -96,8 +96,9 @@ esp8266:
   restore_from_flash: True
   
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
   reboot_timeout: 0s # reboot if no wifi (must be disabled for wifi to be turned off)
   enable_on_boot: True
   id: wifi_id

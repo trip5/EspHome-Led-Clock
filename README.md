@@ -64,8 +64,12 @@ Keep in mind that displaying the message from the Home Assistant integration wil
 ### Time Sync
 
 Time can be synced to the Internet at configurable intervals between 1 - 24 hours, provided the wifi network is connected.
-In the HA version, this is selectable.  In the non-HA versions, this option is not selectable in the UI.  It must be fixed in the YAML.
 
+### Alarms
+
+The clock can play alarms at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune. The 303 does not (so the file must be edited to remove a lot of lines... there are many notes in the YAML to make this easier).
+
+Please note the default YAML has 2 alarms available and 3 tunes.  See below for more information regarding the speaker and how to play tunes.
 
 ## Regular Version
 
@@ -94,7 +98,7 @@ you could re-connect the clock to a powerbank or some other power source and it 
 Please note that this also means that the clock will not try to connect to wifi again (this will be indicated on the screen as "Wifi Off"),
 unless you reset the power, which just means unplugging it and plugging it back in again.
 
-The time to attempt connection is set in the YAML.  Do not set this time too short for usual circumstances.  The range is 60 to 315 seconds.
+The time to attempt connection is set in the WebUI.  Do not set this time too short for usual circumstances.  The range is 60 to 315 seconds.
 Also, do not go outside these numbers as the variable that holds this number is limited to this range.
 
 I have allowed 60 seconds minimum in the options but this could mean your clock stops trying to connect to wifi just because
@@ -170,12 +174,6 @@ It seems to work fine when viewing on a computer or an Apple phone. If you have 
 In the yaml files are notes how to flip your display and use it upside-down.  You should use a different `segment_mapping` as well.
 
 Be sure to check that the yaml file has `backward: true`.
-
-## Alarms
-
-The clock can play alarms at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune. The 303 does not.
-
-Please note the default YAML has 2 alarms available and 3 tunes.  See below for more information regarding the speaker and how to play tunes.
 
 ## Home Assistant Version
 
