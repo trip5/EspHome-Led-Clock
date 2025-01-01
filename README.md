@@ -8,7 +8,17 @@ Using either clock requires the TM1650 display to be supported by an external co
 
 Due to memory constraints on the ESP8266 these clocks use, I've decided to split the functions by how you may choose to use the clock.  Read below for more details.
 
-#### Note: ESPHome must be version 2023.12.0 or higher!
+## New to ESPHome?
+
+Try following this step-by-step to get Docker onto your computer: [Beginner’s Guide to Installing ESPHome on Docker Desktop](https://deploy-preview-4411--esphome.netlify.app/guides/beginners_guide_docker_desktop)
+
+And this to compile the YAML: [Beginner's Guide to Adding Devices](https://deploy-preview-4411--esphome.netlify.app/guides/beginners_guide_adding_devices)
+
+These guides are proposed for the ESPHome documentation and if you find them helpful, it would be great if you could leave a comment in the [Pull Request](https://github.com/esphome/esphome-docs/pull/4411) to get them added to the ESPHome Docs officially.
+
+## New to Flashing a Device?
+
+Please read this: [Physically Connecting to your Device](https://esphome.io/guides/physical_device_connection).
 
 ## Sinilink XY-Clock
 
