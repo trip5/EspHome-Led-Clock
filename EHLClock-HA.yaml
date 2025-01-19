@@ -195,8 +195,11 @@ script:
             if (id(alarm2_tune).state == 3) { id(tune3).press(); };
           };
 
-# The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section
+# Enable Home Assistant API
 api:
+  # delete next 2 lines if not using HA API encryption
+  encryption:
+    key: !secret encryption_key
   reboot_timeout: 15min # 15min is default
   services:
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 6 lines
