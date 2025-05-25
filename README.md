@@ -8,6 +8,8 @@ Using either clock requires the TM1650 display to be supported by an external co
 
 Due to memory constraints on the ESP8266 these clocks use, I've decided to split the functions by how you may choose to use the clock.  Read below for more details.
 
+---
+
 ## New to ESPHome?
 
 Try following this step-by-step to get Docker onto your computer: [Beginner’s Guide to Installing ESPHome on Docker Desktop](https://deploy-preview-4411--esphome.netlify.app/guides/beginners_guide_docker_desktop)
@@ -16,9 +18,11 @@ And this to compile the YAML: [Beginner's Guide to Adding Devices](https://deplo
 
 These guides are proposed for the ESPHome documentation and if you find them helpful, it would be great if you could leave a comment in the [Pull Request](https://github.com/esphome/esphome-docs/pull/4411) to get them added to the ESPHome Docs officially.
 
-## New to Flashing a Device?
+### New to Flashing a Device?
 
 Please read this: [Physically Connecting to your Device](https://esphome.io/guides/physical_device_connection).
+
+---
 
 ## Sinilink XY-Clock
 
@@ -35,6 +39,8 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 Also, sometimes I've had to plug in the USB cable after making the connections... not sure why.
 
+---
+
 ## 303WifiLC01 Clock
 
 ![image](./images/303WIFILC01.jpg)
@@ -48,9 +54,13 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ![image](./images/303WIFILC01-Pins.jpg)
 
+---
+
 ## Handmade TM1637 Clock (with a Lolin ESP32 Lite)
 
 ![image](./images/TM1637-boxclock.jpg)
+
+---
 
 ## Using This firmware
 
@@ -80,6 +90,14 @@ Time can be synced to the Internet at configurable intervals between 1 - 24 hour
 The clock can play alarms at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune. The 303 does not (so the file must be edited to remove a lot of lines... there are many notes in the YAML to make this easier).
 
 Please note the default YAML has 2 alarms available and 3 tunes.  See below for more information regarding the speaker and how to play tunes.
+
+### Flip It!
+
+In the yaml files are notes how to flip your display and use it upside-down.  You should use a different `segment_mapping` as well.
+
+Be sure to check that the yaml file has `backward: true`.
+
+---
 
 ## Regular Version
 
@@ -170,8 +188,10 @@ This is added to the non-HA version by default.
 ```yaml
   local: true
 ```
+
 If you don't mind the device's WebUI being dependent on the Internet, you could remove this line.
 You could consider hosting the file on another machine in-house, too by using something like:
+
 ```yaml
   js_include: ""
   js_url: "http://192.168.1.1/esphome-www/www.js"
@@ -179,11 +199,7 @@ You could consider hosting the file on another machine in-house, too by using so
 Please note that for some reason, I'm not sure that the UI can be viewed from an Chrome-based mobile browser. Maybe my phone has an issue.
 It seems to work fine when viewing on a computer or an Apple phone. If you have information to share, I'd be glad to know why this is.
 
-### Flip It!
-
-In the yaml files are notes how to flip your display and use it upside-down.  You should use a different `segment_mapping` as well.
-
-Be sure to check that the yaml file has `backward: true`.
+---
 
 ## Home Assistant Version
 
@@ -242,11 +258,13 @@ By default, the buttons can be used as such:
 
 Of course, this is ESPHome, so you can change the button functions by editing the YAML if you wish.
 
+---
 
 ## Update History
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2025.05.26 | Very minor fix to sensors |
 | 2024.12.09 | Recoded to remove many global variables, relying on numbers and switches where possible, hard-coded variables removed, alarms version re-integrated into main version |
 | 2024.11.10 | TM1650 driver & YAMLs updated to allow upside-down display, OTA display status works, power measurements complete |
 | 2024.10.29 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
@@ -260,6 +278,7 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 | 2023.08.19 | 303 Clock support added |
 | 2023.06.29 | Sinilink XY-Clock: Basic functionality, HA integration |
 
+---
 
 ## Useful Links
 

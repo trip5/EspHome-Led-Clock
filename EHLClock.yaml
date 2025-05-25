@@ -3,7 +3,7 @@ substitutions:
   name:  xy-clock-blue
   friendly_name: XY-Clock-Blue
   comment: "EHLClock from Trip5"
-  project_version: "2024.12.09"
+  project_version: "2025.05.26"
   project_name: Trip5.EspHomeLedClock
   waiting: "EHLC" # shows when waiting for time
 
@@ -317,12 +317,10 @@ text_sensor:
     name: "${friendly_name} ${project_name} Version"
     lambda: 'return to_string("${project_version}");'
     entity_category: diagnostic
-    update_interval: 1h
   - platform: template
     name: "${friendly_name} Time Zone"
     lambda: 'return {"${time_zone}"};'
     entity_category: diagnostic
-    update_interval: 1h
 
 output:
   - platform: esp8266_pwm
