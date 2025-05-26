@@ -146,6 +146,12 @@ time:
     id: my_time
     timezone: "${time_zone}"
     update_interval: 24h # This seems like the longest safe amount of time - actual configured update happens in interval section
+# Check if alarms need to be played (needs to be under whichever platform is my_time) - remove next 5 lines if alarms are not needed
+    on_time:
+      - seconds: 0
+        minutes: /1 # repeat every minute
+        then:
+          - script.execute: check_alarms
 
 # The Sinilink Clock uses a DS1307 RTC
   - platform: ds1307

@@ -99,7 +99,7 @@ Be sure to check that the yaml file has `backward: true`.
 
 ---
 
-## Regular Version
+## Non-HA Version
 
 The file [`EHLClock.yaml`](EHLClock.yaml) contains functions useful for using the clock as... mostly just a clock but with some power-saving functions.
 It includes all of the functions above as well as these below.  This version has a WebUI which can be accessed via it's IP after connecting the clock to Wifi.
@@ -264,8 +264,8 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
-| 2025.05.26 | Very minor fix to sensors |
-| 2024.12.09 | Recoded to remove many global variables, relying on numbers and switches where possible, hard-coded variables removed, alarms version re-integrated into main version |
+| 2025.05.26 | Very minor fix to sensors, HA version fixed to actually play alarms on time |
+| 2024.12.09 | Recoded to remove many global variables, relying on numbers and switches where possible, hard-coded variables removed, alarms version re-integrated into main versions |
 | 2024.11.10 | TM1650 driver & YAMLs updated to allow upside-down display, OTA display status works, power measurements complete |
 | 2024.10.29 | Added Alarms version, removed alarms from regular version, added Display Off options and hard-coded variables to main and Alarms version |
 | 2024.08.22 | Added `local: true` to non-HA version |
