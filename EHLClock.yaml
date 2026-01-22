@@ -1,20 +1,17 @@
 # My github: https://github.com/trip5
 substitutions:
-  name:  xy-clock-blue
-  friendly_name: XY-Clock-Blue
+  name: "xy-clock-blue"
+  friendly_name: "XY-Clock-Blue"
   comment: "EHLClock from Trip5"
-  project_version: "2025.05.26"
-  project_name: Trip5.EspHomeLedClock
+  project_name: "Trip5.EspHomeLedClock"
+  project_version: "2026.01.22"
   waiting: "EHLC" # shows when waiting for time
 
-  # Time zone can be Olsen type ("Asia/Seoul") # Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-  # Or it can be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
-  # Most can be viewed here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-  # or here: https://support.cyberdata.net/portal/en/kb/articles/010d63c0cfce3676151e1f2d5442e311
+  # A full list can be viewed here: https://github.com/trip5/timezones.json/blob/master/timezones.md
   # If you need to make a custom POSIX format you can look here: https://developer.ibm.com/articles/au-aix-posix/)
   # or even better, use this POSIX Generator (courtesy of TopYuan): https://www.topyuan.top/posix
-  time_zone: "KST-9"
+  time_zone: "AST4ADT,M3.2.0,M11.1.0"
 
 # Pins for I2C RTC are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
@@ -56,20 +53,20 @@ substitutions:
 
 # The following are for the tunes played by the alarm through the passive piezo speaker / buzzer on the Sinilink clock - remove if not needed
 # You can check here: https://picaxe.com/rtttl-ringtones-for-tune-command/ or Search for "RTTTL tunes" to change the tunes
-  tune1_name: "Siren"
-  tune1: "siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e"
-  tune2_name: "Scale Up"
-  tune2: "scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b"
-  tune3_name: "Death"
-  tune3: "death:d=4,o=5,b=100:c.,c,8c,c.,d#,8d,d,8c,c,8c,2c."
+  tune1_name: "NokiaTune"
+  tune1: "NokiaTune:d=4,o=5,b=225:8e6,8d6,f#,g#,8c#6,8b,d,e,8b,8a,c#,e,2a"
+  tune2_name: "AxelF"
+  tune2: "AxelF:d=8,o=5,b=125:16g,16g,a#.,16g,16p,16g,c6,g,f,4g,d6.,16g,16p,16g,d#6,d6,a#,g,d6,g6,16g,16f,16p,16f,d,a#,2g,4p,16f6,d6,c6,a#,4g,a#.,16g,16p,16g,c6,g,f,4g,d6.,16g,16p,16g,d#6,d6,a#,g,d6,g6,16g,16f,16p,16f,d,a#,2g"
+  tune3_name: "Jeopardy"
+  tune3: "Jeopardy:d=4,o=6,b=125:c,f,c,f5,c,f,2c,c,f,c,f,a.,8g,8f,8e,8d,8c#,c,f,c,f5,c,f,2c,f.,8d,c,a#5,a5,g5,f5,p,d#,g#,d#,g#5,d#,g#,2d#,d#,g#,d#,g#,c.7,8a#,8g#,8g,8f,8e,d#,g#,d#,g#5,d#,g#,2d#,g#.,8f,d#,c#,c,p,a#5,p,g#.5,d#,g#"
 
 esphome:
-  name: ${name}
+  name: "${name}"
+  friendly_name: "${friendly_name}"
   comment: "${comment}"
   project:
     name: "${project_name}"
     version: "${project_version}"
-  min_version: 2023.11.0
   on_boot:
     - priority: 600
       then:
@@ -81,26 +78,20 @@ esphome:
         - ds1307.read_time:
 # The 303 uses a DS1302 RTC (will also require an external component)
 #        - ds1302.read_time:
-    - priority: -100
-      then:
-        - wait_until:
-            condition:
-              - lambda: 'return (id(my_time).now().is_valid());'
-# The Sinilink uses a DS1307 RTC
-        - ds1307.write_time:
-# The 303 uses a DS1302 RTC
-#        - ds1302.write_time:
 
 esp8266:
-  board: esp8285
-  restore_from_flash: True
+# The Sinilink uses an ESP8285H16 with 2M of flash, the same as ESP_WROOM_02
+  board: esp_wroom_02
+# The 303 uses a smaller ESP8266EX with only 1M (same as ESP8285) so make sure to remove alarms and rtttl buzzer from this YAML
+#  board: esp8285
+  restore_from_flash: true
   
 wifi:
   networks:
     - ssid: !secret wifi_ssid
       password: !secret wifi_password
   reboot_timeout: 0s # reboot if no wifi (must be disabled for wifi to be turned off)
-  enable_on_boot: True
+  enable_on_boot: true
   id: wifi_id
   ap:
     ssid: ${name}
@@ -109,11 +100,11 @@ wifi:
   on_connect:
     - logger.log: "Wifi connected"
     - light.turn_off: led1
-    - delay: 1s
+    - delay: 2s
     - button.press: display_ip
     - lambda: |-
         id(wifi_stop_seek_time_count) = 0;
-        id(my_time)->update();
+    - script.execute: sync_the_time
   on_disconnect:
     - if:
         condition:
@@ -149,7 +140,7 @@ external_components:
 #    components: [ ds1302 ]
 
 time:
-  - platform: sntp # use SNTP as a time source
+  - platform: sntp # use SNTP as a time source / do not use Home Assistant!
     id: my_time
     timezone: "${time_zone}"
     update_interval: 24h # This seems like the longest safe amount of time - actual configured update happens in interval section
@@ -162,11 +153,13 @@ time:
 
 # The Sinilink Clock uses a DS1307 RTC
   - platform: ds1307
+    id: rtc_time
     timezone: "${time_zone}"
     update_interval: never
 
 # The 303 Clock uses a DS1302 RTC (uncomment this section and delete the above DS1307 section if needed)
 #  - platform: ds1302
+#    id: rtc_time
 #    cs_pin: GPIO5
 #    dio_pin: GPIO14
 #    clk_pin: GPIO16
@@ -177,22 +170,40 @@ script:
   - id: sync_the_time
     mode: restart
     then:
+      - wait_until:
+          condition: wifi.connected
+      - lambda: |-
+          ESP_LOGI("info", "Sync the Time");
       - lambda: 'id(my_time)->update();'
 # The Sinilink Clock uses a DS1307 RTC
       - ds1307.write_time:
 # The 303 Clock uses a DS1302 RTC (uncomment this and delete the other if needed)
 #      - ds1302.write_time:
+# If no RTC is being used, delete 2 lines in the below script - they start with id(rtc_time)
+  - id: set_timezone
+    mode: restart
+    then:
+      - delay: 250ms # need states to stick before updating (helps prevent crashes, too)
+      - lambda: |-
+          if (id(alt_time_zone_on).state && !id(alt_timezone).state.empty()) {
+            id(my_time)->set_timezone(id(alt_timezone).state.c_str());
+            id(rtc_time)->set_timezone(id(alt_timezone).state.c_str());
+          } else {
+            id(my_time)->set_timezone(("${time_zone}"));
+            id(rtc_time)->set_timezone("$(time_zone}");
+          }
+          //id(my_time)->call_setup(); // might be needed?
   - id: display_off_activate
     mode: restart
     then:
       - lambda: |-
-          ESP_LOGD("main", "Display Off activated");
+          ESP_LOGI("info", "Display Off activated");
           id(display_off) = true;
   - id: display_off_deactivate
     mode: restart
     then:
       - lambda: |-
-          ESP_LOGD("main", "Display Off deactivated");
+          ESP_LOGI("info", "Display Off deactivated");
           id(display_off_time_count) = 0;
           id(display_off) = false;
 
@@ -231,13 +242,13 @@ api:
   reboot_timeout: 0s # Must be disabled to allow the Wifi enable/disable to function
 
 mdns:
-  disabled: False
+  disabled: false
 
 logger:
   level: NONE
-# Logging is disabled to save memory but you can easily enable logging (and stop the various sensors/switches from spamming the log) by deleting the above line and uncommening the lines below
+# Logging is disabled to save memory but you can easily enable logging (and stop the various sensors/switches from spamming the log) by deleting the above line and uncommenting the lines below
 # Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing - please note it's also disabled in the web_server section
-#  level: DEBUG
+#  level: INFO
 #  logs:
 #    sensor: ERROR
 #    text_sensor: NONE
@@ -248,11 +259,11 @@ logger:
 
 web_server:
   port: 80
-  ota: True
-  include_internal: False # True will expose more than needed to the Web UI
-  version: 2 # version 3 is much larger but possible if local is False
-  local: True # will download www.js and serve it directly from the clock
-  log: False # disabling in the WebUI to save memory
+  # ota: false # true by default
+  include_internal: false # true will expose more than needed to the Web UI
+  version: 2 # version 3 is much larger but possible if local is false
+  local: true # will download www.js and serve it directly from the clock
+  log: false # disabling in the WebUI to save memory
 
 ota:
   - platform: esphome
@@ -300,34 +311,37 @@ ota:
 captive_portal:
 
 text_sensor:
-  - platform: version
-    name: "${friendly_name} ESPHome Version"
-    hide_timestamp: True
-    entity_category: diagnostic
   - platform: wifi_info
     ip_address:
       id: wifi_ip
-      name: "${friendly_name} IP Address"
+      name: "IP Address"
       entity_category: diagnostic
-    ssid:
-      id: wifi_ssid
-      name: "${friendly_name} SSID"
-      entity_category: diagnostic
+      icon: mdi:network
+      disabled_by_default: true
   - platform: template
-    name: "${friendly_name} ${project_name} Version"
-    lambda: 'return to_string("${project_version}");'
+    id: project_version
+    name: "${project_name} Version"
+    lambda: 'return {"${project_version}"};'
     entity_category: diagnostic
-  - platform: template
-    name: "${friendly_name} Time Zone"
-    lambda: 'return {"${time_zone}"};'
-    entity_category: diagnostic
+    icon: mdi:github
+    disabled_by_default: true
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal Strength"
+    id: wifisignal
+    update_interval: 30s
+    unit_of_measurement: "dBm"
+    entity_category: "diagnostic"
+    icon: mdi:wifi
+    disabled_by_default: true
 
 output:
-  - platform: esp8266_pwm
+  - platform: esp8266_pwm # ESP32 use platform: ledc
     id: statusled
     pin:
       number: ${status_led_pin}
-      inverted: True
+      inverted: true
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 3 lines
   - platform: esp8266_pwm
     pin: ${buzzer_pin}
@@ -342,13 +356,13 @@ light:
     id: led1
     name: "LED"
     output: statusled
-    internal: True
+    internal: true
 
 # Sinilink has 2 LEDs and this will remap the 2nd LED as a status LED but its blinking can be distracting so I've commented it out / 303 Clock can't use it
 #status_led:
 #  pin:
 #    number: ${other_led_pin}
-#    inverted: True
+#    inverted: true
 
 preferences:
   flash_write_interval: 15s # 0 does immediate write to memory with no mem buffer (not recommended) (only saves when persistent variables have changed)
@@ -356,20 +370,20 @@ preferences:
 i2c:
   sda: ${sda_pin}
   scl: ${scl_pin}
-  scan: True
+  scan: true
   id: i2cbus
   
 # Check this section carefully!
 # Also, some info how to handle multi_click options: https://community.home-assistant.io/t/esphome-button-held-double-press/136083/10
 binary_sensor:
   - platform: status
-    name: "${friendly_name} Status"
+    name: "Status"
   - platform: gpio
     pin:
       number: ${up_button_pin}
-      inverted: True # Sinilink true / 303 true
+      inverted: true # Sinilink true / 303 true
       mode: INPUT_PULLUP
-    name: "${friendly_name} Up button"
+    name: "Up button"
     filters:
       - delayed_on: 10ms
       - delayed_off: 10ms
@@ -400,9 +414,9 @@ binary_sensor:
   - platform: gpio
     pin:
       number: ${down_button_pin}
-      inverted: True # Sinilink true / 303 false
+      inverted: true # Sinilink true / 303 false
       mode: INPUT_PULLUP
-    name: "${friendly_name} Down button"
+    name: "Down button"
     filters:
       - delayed_on: 10ms
       - delayed_off: 10ms
@@ -433,8 +447,9 @@ binary_sensor:
   - platform: gpio
     pin: 
       number: ${set_button_pin}
-      inverted: True # Sinilink true / 303 true
-    name: "${friendly_name} Set button"
+      inverted: true # Sinilink true / 303 true
+      # mode: INPUT_PULLUP # may need to uncomment this (Sinilink can't use internal pullup)
+    name: "Set button"
     filters:
       - delayed_on: 10ms
       - delayed_off: 10ms
@@ -487,7 +502,7 @@ display:
             if (id(message_alive_time_count) >= id(message_alive_time)) {
               id(message_alive_time_count) = 0;
               id(message_alive_time) = 0;
-              ESP_LOGD("main", "Message Alive Time finished.");
+              ESP_LOGI("info", "Message Alive Time finished.");
             }
           }
         } else {
@@ -682,96 +697,138 @@ interval:
 globals:
   - id: message
     type: std::string
-    restore_value: False
+    restore_value: false
     initial_value: ''
   - id: message_display_time
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: message_clock_time
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: message_alive_time
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: message_display_time_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: message_clock_time_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: message_alive_time_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: segmentmap
     type: std::string
-    restore_value: False
+    restore_value: false
     initial_value: ''
   - id: IPAddressA
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: IPAddressB
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: IPAddressC
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: IPAddressD
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: blink_option
     type: uint8_t
-    restore_value: True
+    restore_value: true
     initial_value: '1'
   - id: time_display_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: date_display_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: sync_time_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
 # Wifi Stop Seek Variables
   - id: wifi_stop_seek_time_count
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
   - id: seek_blink_led
     type: uint8_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
 # Display Off Variables
   - id: display_off
     type: bool
-    restore_value: False
+    restore_value: false
     initial_value: 'false'
   - id: display_off_time_count
     type: uint16_t
-    restore_value: False
+    restore_value: false
     initial_value: '0'
 
-button:
-  - platform: restart
-    id: restart_button
-    name: "${friendly_name} Restart"
+text:
+  - platform: template
+    name: "Alt Time Zone POSIX"
+    id: alt_timezone
+    optimistic: true
+    min_length: 0
+    max_length: 35
+    mode: text
+    restore_value: true
+    initial_value: "${time_zone}"
+    on_value:
+      then:
+        - delay: 250ms
+        - lambda: |-
+            if (id(alt_timezone).state == "") {
+              id(alt_timezone).state = "${time_zone}";
+            }
+            if (id(alt_timezone).state == "${time_zone}") {
+              id(alt_time_zone_on).turn_off();
+            } else {
+              if (id(tzoffset_on).state) {
+                id(tzoffset_on).turn_off();
+              }
+              id(alt_time_zone_on).turn_on();
+            }
+        - script.execute: set_timezone
+    entity_category: config
+    icon: mdi:clock
+    disabled_by_default: true
+
+# The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 14 lines
+  - platform: template
+    name: "RTTTL Tune Test"
+    id: rtttl_tune_test
+    optimistic: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    restore_value: false
+    on_value:
+      then:
+        - rtttl.play:
+            rtttl: !lambda 'return x;'
     entity_category: diagnostic
+    icon: mdi:music-note
+
+button:
   - platform: template
     id: display_ip
     name: "Display IP Address"
-    internal: True
+    internal: true
     on_press:
       - if:
           condition:
@@ -811,69 +868,92 @@ button:
             - lambda: |-
                 id(message_alive_time) = 0;
                 id(message_display_time) = 0;
+  - platform: template
+    id: reset_timezone_text
+    name: "Alt Time Zone Reset to ${time_zone}"
+    on_press:
+      then:
+        - lambda: |-
+            auto call = id(alt_timezone).make_call();
+            call.set_value("${time_zone}");
+            call.perform();
+    entity_category: config
+    icon: mdi:clock-alert
 
-# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 21 lines
+# Tune Buttons (edit as needed, verify the selector below matches the number available) / the next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete the next 27 lines
   - platform: template
     id: tune1
     name: "Tune 1: ${tune1_name}"
-    internal: False
+    internal: false
     on_press:
       - logger.log: "Playing ${tune1_name}"
       - rtttl.play: "${tune1}"
+    entity_category: config
+    icon: mdi:bell
   - platform: template
     id: tune2
     name: "Tune 2: ${tune2_name}"
-    internal: False
+    internal: false
     on_press:
       - logger.log: "Playing ${tune2_name}"
       - rtttl.play: "${tune2}"
+    entity_category: config
+    icon: mdi:bell
   - platform: template
     id: tune3
     name: "Tune 3: ${tune3_name}"
-    internal: False
+    internal: false
     on_press:
       - logger.log: "Playing ${tune3_name}"
       - rtttl.play: "${tune3}"
+    entity_category: config
+    icon: mdi:bell
 
 switch:
   - platform: template
-    name: "${friendly_name} 12 Hour Mode"
+    name: "12 Hour Mode"
     id: hour12_mode
     restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: True
+    optimistic: true
     turn_on_action:
         - lambda: |-
-            ESP_LOGD("main", "12 Hour Mode On");
+            ESP_LOGI("info", "12 Hour Mode On");
     turn_off_action:
         - lambda: |-
-            ESP_LOGD("main", "12 Hour Mode Off");
+            ESP_LOGI("info", "12 Hour Mode Off");
+    entity_category: config
+    icon: mdi:clock-digital
   - platform: template
-    name: "${friendly_name} Date Display US Mode (DDMM)"
+    name: "Date Display US Mode (DDMM)"
     id: date_display_mode_us
     restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: True
+    optimistic: true
     turn_on_action:
         - lambda: |-
-            ESP_LOGD("main", "Date Display US Mode On");
+            ESP_LOGI("info", "Date Display US Mode On");
     turn_off_action:
         - lambda: |-
-            ESP_LOGD("main", "Date Display US Mode Off");
+            ESP_LOGI("info", "Date Display US Mode Off");
+    entity_category: config
+    icon: mdi:calendar-month
   - platform: template
-    name: "${friendly_name} Time Zone Offset On"
+    name: "Time Zone Offset On"
     id: tzoffset_on
     restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: True
+    optimistic: true
     turn_on_action:
         - lambda: |-
-            ESP_LOGD("main", "Time Zone Offset On");
+            ESP_LOGI("info", "Time Zone Offset On");
     turn_off_action:
         - lambda: |-
-            ESP_LOGD("main", "Time Zone Offset Off");
+            ESP_LOGI("info", "Time Zone Offset Off");
+    entity_category: config
+    icon: mdi:airplane-clock
   - platform: template
-    name: "${friendly_name} Date Display Mode"
+    name: "Date Display Mode"
     id: date_display_mode
     restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: True
+    optimistic: true
     turn_on_action:
         - logger.log: "Date Display Mode On"
         - lambda: |-
@@ -888,11 +968,13 @@ switch:
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
+    entity_category: config
+    icon: mdi:calendar
   - platform: template
-    name: "${friendly_name} Wifi Stop Seek"
+    name: "Wifi Stop Seek"
     id: wifi_stop_seek
     restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: True
+    optimistic: true
     turn_on_action:
         - delay: 1s
         - logger.log: "Wifi Stop Seek On"
@@ -909,14 +991,29 @@ switch:
             id(message_alive_time) = 1;
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
+    entity_category: config
+    icon: mdi:wifi-off
+  - platform: template
+    name: "Alt Time Zone On"
+    id: alt_time_zone_on
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    turn_on_action:
+        - lambda: |-
+            ESP_LOGI("info", "Alt Time Zone On");
+    turn_off_action:
+        - lambda: |-
+            ESP_LOGI("info", "Alt Time Zone Off");
+    entity_category: config
+    icon: mdi:airplane-clock
 
 # Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
 # If using the 303 Clock or another with no piezo speaker, delete the next 19 lines
   - platform: template
-    name: "${friendly_name} Alarms On"
+    name: "Alarms On"
     id: alarms_on
     restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: True
+    optimistic: true
     turn_on_action:
         - logger.log: "Alarms On"
         - lambda: |-
@@ -931,13 +1028,15 @@ switch:
             id(message_display_time) = 1;
             id(message_clock_time) = 0;
             id(message) = ("Aoff");
+    entity_category: config
+    icon: mdi:alarm
 
 select:
   - platform: template
-    name: "${friendly_name} Colon Blink (0=Off / 1=On / 2=Always On)"
+    name: "Colon Blink (0=Off / 1=On / 2=Always On)"
     id: blink_option_select
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     options:
       - '0'
       - '1'
@@ -947,14 +1046,16 @@ select:
       then:
         - lambda: |-
             id(blink_option) = atoi(x.c_str());
-            ESP_LOGD("main", "Colon Blink: %d", id(blink_option));
+            ESP_LOGI("info", "Colon Blink: %d", id(blink_option));
+    entity_category: config
+    icon: mdi:shimmer
 
 number:
   - platform: template
-    name: "${friendly_name} Brightness"
+    name: "Brightness"
     id: brightness
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 8
@@ -963,12 +1064,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Brightness: %.0f", x);
+            ESP_LOGI("info", "Brightness: %.0f", x);
+    entity_category: config
+    icon: mdi:brightness-5
   - platform: template
-    name: "${friendly_name} Time Display Time"
+    name: "Time Display Time"
     id: time_display_time
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 1
     max_value: 60
@@ -978,12 +1081,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Time Display Time: %.0f seconds", x);
+            ESP_LOGI("info", "Time Display Time: %.0f seconds", x);
+    entity_category: config
+    icon: mdi:clock-start
   - platform: template
-    name: "${friendly_name} Date Display Time"
+    name: "Date Display Time"
     id: date_display_time
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 1
     max_value: 60
@@ -993,12 +1098,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Date Display Time: %.0f seconds", x);
+            ESP_LOGI("info", "Date Display Time: %.0f seconds", x);
+    entity_category: config
+    icon: mdi:calendar-start
   - platform: template
-    name: "${friendly_name} Time Zone Offset"
+    name: "Time Zone Offset"
     id: tzoffset
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 0.25
     min_value: -26
     max_value: 26
@@ -1008,12 +1115,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Time Zone Offset: %.2f hours", x);
+            ESP_LOGI("info", "Time Zone Offset: %.2f hours", x);
+    entity_category: config
+    icon: mdi:clock-plus
   - platform: template
-    name: "${friendly_name} Time Sync Interval"
+    name: "Time Sync Interval"
     id: sync_time
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 1
     max_value: 24
@@ -1023,12 +1132,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Time Sync Interval: %.0f hours", x);
+            ESP_LOGI("info", "Time Sync Interval: %.0f hours", x);
+    entity_category: config
+    icon: mdi:timer-sync
   - platform: template
-    name: "${friendly_name} Wifi Stop Seek Time"
+    name: "Wifi Stop Seek Time"
     id: wifi_stop_seek_time
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 1
     max_value: 60
@@ -1038,12 +1149,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Wifi Stop Seek Time: %.0f seconds", x);
+            ESP_LOGI("info", "Wifi Stop Seek Time: %.0f seconds", x);
+    entity_category: config
+    icon: mdi:wifi-off
   - platform: template
-    name: "${friendly_name} Display Off Time (0 Disable)"
+    name: "Display Off Time (0 Disable)"
     id: display_off_time
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 5
     min_value: 0
     max_value: 60
@@ -1053,13 +1166,15 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Display Off Time: %.0f minutes", x);
+            ESP_LOGI("info", "Display Off Time: %.0f minutes", x);
         - script.execute: display_off_deactivate
+    entity_category: config
+    icon: mdi:lightbulb-off
   - platform: template
-    name: "${friendly_name} Display Off When No Wifi Time (seconds) (0 Disable)"
+    name: "Display Off When No Wifi Time (seconds) (0 Disable)"
     id: display_off_no_wifi_time
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 5
     min_value: 0
     max_value: 180
@@ -1069,17 +1184,19 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Display Off No Wifi Time: %.0f seconds", x);
+            ESP_LOGI("info", "Display Off No Wifi Time: %.0f seconds", x);
         - script.execute: display_off_deactivate
+    entity_category: config
+    icon: mdi:lightbulb-off
 
 # The next section is only for the Sinilink Clock. If using the 303 Clock or another with no piezo speaker, delete from here to the end.
 # Alarms UI Selector (each alarm requires tune/hour/min selectors)
 # Alarm 1 UI Selector Begins
   - platform: template
-    name: "${friendly_name} Alarm 1 Tune (0=Off)"
+    name: "Alarm 1 Tune (0=Off)"
     id: alarm1_tune
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 3 # set this to how many alarms you have available
@@ -1088,12 +1205,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Alarm 1 Tune: %.0f", x);
+            ESP_LOGI("info", "Alarm 1 Tune: %.0f", x);
+    entity_category: config
+    icon: mdi:music-note
   - platform: template
-    name: "${friendly_name} Alarm 1 Hour"
+    name: "Alarm 1 Hour"
     id: alarm1_hour
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 23
@@ -1103,12 +1222,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Alarm 1 Hour: %.0f", x);
+            ESP_LOGI("info", "Alarm 1 Hour: %.0f", x);
+    entity_category: config
+    icon: mdi:alarm
   - platform: template
-    name: "${friendly_name} Alarm 1 Minutes"
+    name: "Alarm 1 Minutes"
     id: alarm1_min
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 59
@@ -1118,16 +1239,18 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Alarm 1 Minutes: %.0f", x);
+            ESP_LOGI("info", "Alarm 1 Minutes: %.0f", x);
+    entity_category: config
+    icon: mdi:alarm
 
 # If you require more alarms, copy from the next line to the end, paste, and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
 # WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (only 2 have been tested but you could probably get 3 or 4
 # Alarm 2 UI Selector Begins
   - platform: template
-    name: "${friendly_name} Alarm 2 Tune (0=Off)"
+    name: "Alarm 2 Tune (0=Off)"
     id: alarm2_tune
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 3 # set this to how many alarms you have available
@@ -1136,12 +1259,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Alarm 2 Tune: %.0f", x);
+            ESP_LOGI("info", "Alarm 2 Tune: %.0f", x);
+    entity_category: config
+    icon: mdi:music-note
   - platform: template
-    name: "${friendly_name} Alarm 2 Hour"
+    name: "Alarm 2 Hour"
     id: alarm2_hour
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 23
@@ -1151,12 +1276,14 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Alarm 2 Hour: %.0f", x);
+            ESP_LOGI("info", "Alarm 2 Hour: %.0f", x);
+    entity_category: config
+    icon: mdi:alarm
   - platform: template
-    name: "${friendly_name} Alarm 2 Minutes"
+    name: "Alarm 2 Minutes"
     id: alarm2_min
-    restore_value: True
-    optimistic: True
+    restore_value: true
+    optimistic: true
     step: 1
     min_value: 0
     max_value: 59
@@ -1166,4 +1293,6 @@ number:
     set_action:
       then:
         - lambda: |-
-            ESP_LOGD("main", "Alarm 2 Minutes: %.0f", x);
+            ESP_LOGI("info", "Alarm 2 Minutes: %.0f", x);
+    entity_category: config
+    icon: mdi:alarm

@@ -107,11 +107,16 @@ So if you need a travel clock, this may be the ideal one for you.  It can still 
 
 ### Time Zone Offset
 
-It's up to you how to handle time offset.  It will affect the main time zone as well as the alternate time zone
+It's up to you how to handle time offset.
 You can set an offset with a number that is a positive or negative value with decimal places (ie. 2, -2, 12.5).
 
-I have allowed steps of 0.25 (equal to 15 minutes) but I notice ESPHome does not enforce those steps. It is possible to set an offset like 0.01 (which would be 36 seconds).
-Be careful.
+I have allowed steps of 0.25 (equal to 15 minutes) but ESPHome does not enforce those steps.
+It is possible to set an offset like 0.01 (which would be 36 seconds).  Be careful.
+
+### Time Zone POSIX
+
+Thanks to [andrewjswan](https://github.com/andrewjswan) for the idea to make the time zone editable directly in the WebUI.
+It must be in POSIX format (see notes below).  Don't forget to hit enter to make it stick.
 
 ### Wifi Stop Seek
 
@@ -196,29 +201,23 @@ You could consider hosting the file on another machine in-house, too by using so
   js_include: ""
   js_url: "http://192.168.1.1/esphome-www/www.js"
 ```
-Please note that for some reason, I'm not sure that the UI can be viewed from an Chrome-based mobile browser. Maybe my phone has an issue.
-It seems to work fine when viewing on a computer or an Apple phone. If you have information to share, I'd be glad to know why this is.
 
 ---
 
 ## Home Assistant Version
 
 The file [`EHLClock-HA.yaml`](EHLClock-HA.yaml) contains functions useful for using the clock with Home Assistant.
-It does not include the WebUI, Time Zone Offset, or Wifi Stop Seek but it does include Alarms and all of the functions below.
+It does not include the WebUI, Time Zone Offset, Time Zone POSIX, or Wifi Stop Seek but it does includes all of the functions below.
 
 ### Alternate Time Zone
 
 This option is to allow displaying a Time Zone other than your "home" time zone.  It can be activated permanently.
 
-Please note that the time zones MUST be in POSIX format instead of the usual Olsen type (`Asia/Seoul`).
+### Override Time Zones
 
-POSIX formats look like: `KST-9` or `PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00` or `AST4ADT,M3.2.0,M11.1.0`.
-
-They include daylight savings and time-switches in the formatting. So, there is no reliance on the ESPHome Olsen database to be current.
-You can view a lot of the time zones in the world in POSIX format [`here`](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv) or
-[`here`](https://support.cyberdata.net/portal/en/kb/articles/010d63c0cfce3676151e1f2d5442e311).
-If you need to make a custom POSIX format you can look [`here`](https://developer.ibm.com/articles/au-aix-posix/) or even better, use this
-[`POSIX Generator`](https://www.topyuan.top/posix) courtesy of TopYuan.
+Making Home Assistant Helpers (Input Text) with these names can override the in-firmware time zones.
+Add `Clock Time Zone` and `Clock Time Zone Alt` as text helpers through [Helpers](https://my.home-assistant.io/redirect/helpers/).
+By default, these entities are `input_text.clock_time_zone` and `input_text.clock_time_zone_alt`.
 
 ### Service Calls
 
@@ -260,10 +259,31 @@ Of course, this is ESPHome, so you can change the button functions by editing th
 
 ---
 
+## Notes
+
+### POSIX Time Strings
+
+Please note that the time zones MUST be in POSIX format instead of the usual Olsen type (`Asia/Seoul`).
+
+POSIX formats look like: `KST-9` or `PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00` or `AST4ADT,M3.2.0,M11.1.0`.
+
+They include daylight savings and time-switches in the formatting. So, there is no reliance on the ESPHome Olsen database to be current.
+You can view all of the time zones in the world in POSIX format [`here`](https://github.com/trip5/timezones.json/blob/master/timezones.md).
+If you need to make a custom POSIX format you can look [`here`](https://developer.ibm.com/articles/au-aix-posix/) or even better, use this
+[`POSIX Generator`](https://www.topyuan.top/posix) courtesy of TopYuan.
+
+### OTA Update Can Be Buggy
+
+Because these devices save preferences to flash, updates that introduce new features (which I do often) may fragment the storage space, causing strange behavior.
+It's always best to fully erase and re-flash when upgrading the version of the firmware.
+
+---
+
 ## Update History
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2026.01.22 | Added POSIX to non-HA version and overrides to HA version, removed device's friendly name from entities, mdi icons added, various fixes |
 | 2025.05.26 | Very minor fix to sensors, HA version fixed to actually play alarms on time |
 | 2024.12.09 | Recoded to remove many global variables, relying on numbers and switches where possible, hard-coded variables removed, alarms version re-integrated into main versions |
 | 2024.11.10 | TM1650 driver & YAMLs updated to allow upside-down display, OTA display status works, power measurements complete |
