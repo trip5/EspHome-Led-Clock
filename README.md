@@ -47,7 +47,11 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ![image](./images/sinilink_XY-Clock-Pins.jpg)
 
-Also, sometimes I've had to plug in the USB cable after making the connections... not sure why.
+A JST1.25mm header should fit nicely if you want a DIY quick-connector...
+
+![image](./images/JST1.25mm.jpg)
+
+I usually use some copper wire bent into hooks soldered to connector wire.
 
 #### 303WifiLC01 Clock
 
@@ -55,6 +59,7 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ![image](./images/303WIFILC01-Pins.jpg)
 
+2.54mm pin headers fit nicely (duPont male connectors will kind of work).
 
 <!--
 
