@@ -43,12 +43,12 @@ jobs:
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Final version: ${VERSION}"
 
-      - name: Preparing base files and Sanitizing Secrets
+      - name: Preparing base files, sanitizing Secrets, changing default time zone to GMT0
         run: |
           mkdir -p generated_yamls
           echo "📋 Copying master files..."
           cp EHLClock.yaml generated_yamls/EHLClock.yaml
-          cp EHLClock-HA.yaml generated_yamls/EHLClock-HA.yaml
+          cp EHLClock-HA.yaml generated_yamls/EHLClock-HA.yamlecho "🔧 Removing: ssid name, ssid password, ap password, ota password, encryption key, changing time zone to GMT0..."
           echo "🔧 Removing: ssid name, ssid password, ap password, ota password, encryption key..."
           for base_file in generated_yamls/EHLClock.yaml generated_yamls/EHLClock-HA.yaml; do
             sed -i '/- ssid: !secret wifi_ssid/d' "$base_file"
@@ -56,6 +56,7 @@ jobs:
             sed -i '/password: !secret ap_password/d' "$base_file"
             sed -i '/password: !secret ota_password/d' "$base_file"
             sed -i '/key: !secret encryption_key/d' "$base_file"
+            sed -i '0,/time_zone: "[^"]*"/s//time_zone: "GMT0"/' "$base_file"
           done
 
       - name: Generate hardware variants
