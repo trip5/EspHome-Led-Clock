@@ -48,8 +48,8 @@ jobs:
           mkdir -p generated_yamls
           echo "📋 Copying master files..."
           cp EHLClock.yaml generated_yamls/EHLClock.yaml
-          cp EHLClock-HA.yaml generated_yamls/EHLClock-HA.yamlecho "🔧 Removing: ssid name, ssid password, ap password, ota password, encryption key, changing time zone to GMT0..."
-          echo "🔧 Removing: ssid name, ssid password, ap password, ota password, encryption key..."
+          cp EHLClock-HA.yaml generated_yamls/EHLClock-HA.yaml
+          echo "🔧 Removing: ssid name, ssid password, ap password, ota password, encryption key, changing time zone to GMT0..."
           for base_file in generated_yamls/EHLClock.yaml generated_yamls/EHLClock-HA.yaml; do
             sed -i '/- ssid: !secret wifi_ssid/d' "$base_file"
             sed -i '/password: !secret wifi_password/d' "$base_file"
