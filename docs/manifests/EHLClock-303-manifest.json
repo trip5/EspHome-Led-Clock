@@ -1,0 +1,17 @@
+{
+  "name": "EspHome-Led-Clock",
+  "version": "2026.01.25",
+  "home_assistant_domain": "esphome",
+  "funding_url": "https://github.com/sponsors/trip5",
+  "builds": [
+    {
+      "chipFamily": "ESP8266",
+      "parts": [
+        {
+          "path": "../firmware/EHLClock-303.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

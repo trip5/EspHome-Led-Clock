@@ -1,54 +1,30 @@
 {
-  "project": "EspHome-Led-PixelClock",
-  "version": "2026.01.22",
-  "build_date": "2026-01-23 18:08:04 UTC",
+  "project": "EspHome-Led-Clock",
+  "version": "2026.01.25",
+  "build_date": "2026-01-25 08:07:21 UTC",
   "variants": [
   {
-    "name": "Chinese (Home Assistant)",
-    "manifest": "manifests/Chinese-HA-manifest.json",
-    "description": "English + Chinese firmware"
+    "name": "303 Clock - HA",
+    "manifest": "manifests/EHLClock-303-HA-manifest.json",
+    "description": "303WIFILC01 Clock with Home Assistant integration"
   }
   ,
   {
-    "name": "Chinese",
-    "manifest": "manifests/Chinese-manifest.json",
-    "description": "English + Chinese firmware"
+    "name": "303 Clock",
+    "manifest": "manifests/EHLClock-303-manifest.json",
+    "description": "303WIFILC01 Clock non-HA"
   }
   ,
   {
-    "name": "French (Home Assistant)",
-    "manifest": "manifests/French-HA-manifest.json",
-    "description": "English + French firmware"
+    "name": "EHLClock - HA",
+    "manifest": "manifests/EHLClock-HA-manifest.json",
+    "description": "Sinilink XY-Clock with Home Assistant integration"
   }
   ,
   {
-    "name": "French",
-    "manifest": "manifests/French-manifest.json",
-    "description": "English + French firmware"
-  }
-  ,
-  {
-    "name": "Greek (Home Assistant)",
-    "manifest": "manifests/Greek-HA-manifest.json",
-    "description": "English + Greek firmware"
-  }
-  ,
-  {
-    "name": "Greek",
-    "manifest": "manifests/Greek-manifest.json",
-    "description": "English + Greek firmware"
-  }
-  ,
-  {
-    "name": "Korean (Home Assistant)",
-    "manifest": "manifests/Korean-HA-manifest.json",
-    "description": "English + Korean firmware"
-  }
-  ,
-  {
-    "name": "Korean",
-    "manifest": "manifests/Korean-manifest.json",
-    "description": "English + Korean firmware"
+    "name": "EHLClock",
+    "manifest": "manifests/EHLClock-manifest.json",
+    "description": "Sinilink XY-Clock non-HA"
   }
   ]
 }
