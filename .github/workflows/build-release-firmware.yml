@@ -1,0 +1,229 @@
+name: Build and Release Firmware
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome
+        run: |
+          pip install esphome
+
+      - name: Get version tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(grep 'project_version:' EHLClock.yaml | sed 's/.*project_version: "\(.*\)".*/\1/')
+            TAG="${VERSION}"
+            echo "Extracted version from YAML: ${VERSION}"
+          else
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#v}
+            echo "Using git tag: ${TAG}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Final version: ${VERSION}"
+
+      - name: Generate firmware variants
+        run: |
+          echo "🔄 Generating firmware variants..."
+          mkdir -p generated_yamls
+          echo "📝 Creating 303 Clock variants..."
+          python yaml-derive.py EHLClock.yaml "303 Clock" generated_yamls/EHLClock-303.yaml
+          python yaml-derive.py EHLClock-HA.yaml "303 Clock" generated_yamls/EHLClock-303-HA.yaml
+          echo "📋 Copying master files..."
+          cp EHLClock.yaml generated_yamls/EHLClock.yaml
+          cp EHLClock-HA.yaml generated_yamls/EHLClock-HA.yaml
+          echo "✅ Generated all firmware variants"
+          ls -la generated_yamls/
+
+      - name: Validate YAML files
+        run: |
+          echo "🔍 Validating generated YAML files..."
+          for yaml_file in generated_yamls/*.yaml; do
+            echo "Validating $yaml_file..."
+            esphome config "$yaml_file"
+          done
+          echo "✅ All YAML files are valid"
+
+      - name: Compile ESPHome firmwares
+        run: |
+          echo "🔨 Compiling ESPHome firmwares..."
+          mkdir -p firmware
+          for yaml_file in generated_yamls/*.yaml; do
+            filename=$(basename "$yaml_file" .yaml)
+            echo "🔨 Building ${filename}..."
+            
+            # Clean build directory to prevent mix-ups
+            rm -rf generated_yamls/.esphome/build/*
+            
+            # Compile the firmware
+            esphome compile "$yaml_file"
+            device_name=$(grep 'name:' "$yaml_file" | head -1 | sed 's/.*name: *"\?\([^"]*\)"\?.*/\1/')
+            possible_paths=(
+              "generated_yamls/.esphome/build/${device_name}/.pioenvs/${device_name}/firmware.bin"
+              ".pioenvs/${device_name}/firmware.bin"
+              "${device_name}/.pioenvs/${device_name}/firmware.bin"
+              ".esphome/build/${device_name}/.pioenvs/${device_name}/firmware.bin"
+            )
+            binary_found=false
+            for binary_path in "${possible_paths[@]}"; do
+              if [ -f "$binary_path" ]; then
+                cp "$binary_path" "firmware/${filename}.bin"
+                echo "✅ Copied ${filename}.bin from $binary_path"
+                binary_found=true
+                break
+              fi
+            done
+            if [ "$binary_found" = false ]; then
+              echo "❌ Binary not found for ${filename}"
+              echo "Searched in:"
+              for path in "${possible_paths[@]}"; do
+                echo "  - $path"
+              done
+              find . -name "firmware.bin" -type f 2>/dev/null || echo "No firmware.bin files found anywhere"
+            fi
+          done
+          echo " Generated firmware files:"
+          ls -la firmware/ || echo "No firmware directory created"
+
+      - name: Create firmware manifests
+        run: |
+          echo "📝 Creating firmware manifests..."
+          rm -rf docs/manifests
+          mkdir -p docs/manifests
+          for bin_file in $(ls -1 firmware/*.bin); do
+            if [ -f "$bin_file" ]; then
+              filename=$(basename "$bin_file")
+              variant_id="${filename%.bin}"
+              manifest_file="docs/manifests/${variant_id}-manifest.json"
+              echo '{' > "$manifest_file"
+              echo '  "name": "EspHome-Led-Clock",' >> "$manifest_file"
+              echo '  "version": "${{ steps.get_version.outputs.version }}",' >> "$manifest_file"
+              echo '  "home_assistant_domain": "esphome",' >> "$manifest_file"
+              echo '  "funding_url": "https://github.com/sponsors/trip5",' >> "$manifest_file"
+              echo '  "builds": [' >> "$manifest_file"
+              echo '    {' >> "$manifest_file"
+              echo '      "chipFamily": "ESP8266",' >> "$manifest_file"
+              echo '      "parts": [' >> "$manifest_file"
+              echo '        {' >> "$manifest_file"
+              echo "          \"path\": \"../firmware/${filename}\"," >> "$manifest_file"
+              echo '          "offset": 0' >> "$manifest_file"
+              echo '        }' >> "$manifest_file"
+              echo '      ]' >> "$manifest_file"
+              echo '    }' >> "$manifest_file"
+              echo '  ]' >> "$manifest_file"
+              echo '}' >> "$manifest_file"
+              echo "Created manifest: $manifest_file"
+            fi
+          done
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          echo '{' > docs/firmware-info.json
+          echo '  "project": "EspHome-Led-Clock",' >> docs/firmware-info.json
+          echo '  "version": "${{ steps.get_version.outputs.version }}",' >> docs/firmware-info.json
+          echo "  \"build_date\": \"${BUILD_DATE}\"," >> docs/firmware-info.json
+          echo '  "variants": [' >> docs/firmware-info.json
+          FIRST=true
+          for bin_file in $(ls -1 firmware/*.bin); do
+            if [ -f "$bin_file" ]; then
+              filename=$(basename "$bin_file")
+              variant_id="${filename%.bin}"
+              # Create display names based on variant
+              if [[ "$filename" == EHLClock-303-HA.bin ]]; then
+                display_name="303 Clock - HA"
+                description="303WIFILC01 Clock with Home Assistant integration"
+              elif [[ "$filename" == EHLClock-303.bin ]]; then
+                display_name="303 Clock"
+                description="303WIFILC01 Clock non-HA"
+              elif [[ "$filename" == EHLClock-HA.bin ]]; then
+                display_name="EHLClock - HA"
+                description="Sinilink XY-Clock with Home Assistant integration"
+              elif [[ "$filename" == EHLClock.bin ]]; then
+                display_name="EHLClock"
+                description="Sinilink XY-Clock non-HA"
+              else
+                display_name="${filename%.bin}"
+                description="Firmware variant"
+              fi
+              if [ "$FIRST" = "false" ]; then
+                echo "  ," >> docs/firmware-info.json
+              fi
+              FIRST=false
+              echo '  {' >> docs/firmware-info.json
+              echo "    \"name\": \"${display_name}\"," >> docs/firmware-info.json
+              echo "    \"manifest\": \"manifests/${variant_id}-manifest.json\"," >> docs/firmware-info.json
+              echo "    \"description\": \"${description}\"" >> docs/firmware-info.json
+              echo '  }' >> docs/firmware-info.json
+            fi
+          done
+          echo '  ]' >> docs/firmware-info.json
+          echo '}' >> docs/firmware-info.json
+          echo "✅ Created firmware manifests and info"
+
+      - name: Commit manifest files to docs
+        run: |
+          git fetch origin main
+          git checkout main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/manifests/*.json docs/firmware-info.json
+          git commit -m "Update firmware manifests for ${{ steps.get_version.outputs.version }} [skip ci]" || echo "No changes to commit"
+          git push origin main || echo "Nothing to push"
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-binaries
+          path: |
+            firmware/*.bin
+            docs/firmware-info.json
+            docs/manifests/*.json
+          retention-days: 90
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: "${{ steps.get_version.outputs.tag }}"
+          body: |
+            Compiled firmware binaries for EspHome-Led-Clock.
+            
+            **Available variants:**
+            - EHLClock.bin - Sinilink XY-Clock
+            - EHLClock-HA.bin - Sinilink XY-Clock with Home Assistant integration
+            - EHLClock-303.bin - 303WIFILC01 Clock
+            - EHLClock-303-HA.bin - 303WIFILC01 Clock with Home Assistant integration
+          
+            You can download the firmware and flash yourself or you can use my [Web Installer](https://trip5.github.io/EspHome-Led-Clock/firmware.html).
+
+            These firmwares can get Wi-Fi SSID and password through Improv via Serial or through the captive portal.
+
+            You can use the tool provided above or the official one at [Improv-wifi](https://www.improv-wifi.com/) (click on 'Improv via Serial').
+
+            The captive portal will make a hotspot with the name of the clock. Connect to it and visit http://192.168.4.1 to configure the Wi-Fi.
+          files: |
+            firmware/*.bin
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

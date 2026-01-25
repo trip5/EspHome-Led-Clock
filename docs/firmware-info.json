@@ -1,0 +1,54 @@
+{
+  "project": "EspHome-Led-PixelClock",
+  "version": "2026.01.22",
+  "build_date": "2026-01-23 18:08:04 UTC",
+  "variants": [
+  {
+    "name": "Chinese (Home Assistant)",
+    "manifest": "manifests/Chinese-HA-manifest.json",
+    "description": "English + Chinese firmware"
+  }
+  ,
+  {
+    "name": "Chinese",
+    "manifest": "manifests/Chinese-manifest.json",
+    "description": "English + Chinese firmware"
+  }
+  ,
+  {
+    "name": "French (Home Assistant)",
+    "manifest": "manifests/French-HA-manifest.json",
+    "description": "English + French firmware"
+  }
+  ,
+  {
+    "name": "French",
+    "manifest": "manifests/French-manifest.json",
+    "description": "English + French firmware"
+  }
+  ,
+  {
+    "name": "Greek (Home Assistant)",
+    "manifest": "manifests/Greek-HA-manifest.json",
+    "description": "English + Greek firmware"
+  }
+  ,
+  {
+    "name": "Greek",
+    "manifest": "manifests/Greek-manifest.json",
+    "description": "English + Greek firmware"
+  }
+  ,
+  {
+    "name": "Korean (Home Assistant)",
+    "manifest": "manifests/Korean-HA-manifest.json",
+    "description": "English + Korean firmware"
+  }
+  ,
+  {
+    "name": "Korean",
+    "manifest": "manifests/Korean-manifest.json",
+    "description": "English + Korean firmware"
+  }
+  ]
+}

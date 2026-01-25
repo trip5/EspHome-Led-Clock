@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon.png">
+    <link rel="apple-touch-icon" href="./images/favicon.png">
+    <title>EspHome-Led-Clock - Web Installer</title>
+    <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            margin: 20px 0;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+        }
+
+        .made-for-esphome {
+            margin: 20px 0;
+        }
+
+        .made-for-esphome img {
+            height: 96px;
+            width: auto;
+        }
+
+        .firmware-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .firmware-selector {
+            margin: 20px 0;
+        }
+
+        .firmware-selector label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .firmware-selector select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            background: white;
+            transition: border-color 0.2s;
+        }
+
+        .firmware-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .install-section {
+            margin: 25px 0;
+            text-align: center;
+        }
+
+        esp-web-install-button {
+            --esp-tools-button-color: #667eea;
+            --esp-tools-button-text-color: white;
+            margin: 10px;
+        }
+
+        esp-web-install-button button {
+            padding: 16px 48px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #049cdb 0%, #0273a5 100%);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(4, 156, 219, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        esp-web-install-button button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(4, 156, 219, 0.6);
+        }
+
+        esp-web-install-button button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 30px 0;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .footer img {
+            height: 48px;
+            width: auto;
+            margin-bottom: 10px;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .footer img:hover {
+            opacity: 1;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>EspHome-Led-Clock</h1>
+            <p>ESP Web Tool</p>
+            <div class="made-for-esphome">
+                <a href="https://github.com/trip5/EspHome-Led-Clock" target="_blank"><img src="images/EHLC.png" alt="EspHome-Led-Clock" style="height: 80px; margin-right: 20px;"></a>
+                <a href="https://esphome.io/guides/made_for_esphome/" target="_blank"><img src="https://esphome.io/_images/made-for-esphome-white-on-black.png" alt="Made for ESPHome" style="height: 80px;"></a>
+            </div>
+        </div>
+
+        <div class="firmware-section">
+            <h3>Flash Firmware</h3>
+            <p>With this tool, you can:</p>
+            <ul style="color: #495057; margin-left: 20px;">
+                <li>Flash firmware</li>
+                <li>Connect device to the Wi-Fi network</li>
+                <li>Visit the device's hosted web interface</li>
+                <li>Access logs and send terminal commands</li>
+                <li>Add the device to Home Assistant</li>
+            </ul>
+
+            <h3>Flashing Mode</h3>
+            <p>Connect your clock to serial and enter flashing mode. That usually means connecting GPIO0 to Ground.
+                <a href="https://trip5.github.io/EspHome-Led-Clock/#flashing" target="_blank" style="color: #667eea;">Learn how here</a>.</p>
+
+            <h3>Improv Mode</h3>
+            <p>Reset with GPIO0 not grounded and you can set up Wi-fi configuration, visit the device's WebUI, or add to Home Assistant.
+                Then, click 'Connect' again. It doesn't matter which firmware is selected.</p>
+            
+            <div class="firmware-selector">
+                <label for="language-select">Select Firmware:</label>
+                <select id="language-select">
+                    <option value="">Loading available firmware...</option>
+                </select>
+            </div>
+
+            <div class="install-section">
+                <esp-web-install-button id="install-button" style="display: none;">
+                    <button slot="activate">Connect</button>
+                </esp-web-install-button>
+            </div>
+
+            <h3>Time Zones</h3>
+            <p>These firmwares likely contain time zones that do not match yours.  That's OK, you can change them!
+                For non-HA versions, you can change the
+                <a href="https://trip5.github.io/EspHome-Led-Clock/#time-zone-posix" target="_blank" style="color: #667eea;">POSIX string of the Alternate Time Zone</a>
+                in the device's Web UI. For HA versions, you can
+                <a href="https://trip5.github.io/EspHome-Led-Clock/#override-time-zones" target="_blank" style="color: #667eea;">override the time zones</a>
+                with Helpers.</p>
+        </div>
+    </div>
+
+    <div class="footer" style="background: #1a1a1a; color: white; text-align: center; padding: 30px 40px; margin-top: 0; border-top: 1px solid #333;">
+        <a href="https://github.com/trip5" target="_blank">
+            <img src="https://raw.githubusercontent.com/trip5/trip5/main/images/Trip5_outline.svg" alt="Trip5">
+        </a>
+        <p style="margin: 10px 0 5px; color: #ccc;">Made with <a href="https://esphome.github.io/esp-web-tools/" target="_blank" style="color: #667eea;">ESP Web Tools</a></p>
+    </div>
+
+    <script>
+        // Configuration
+        const GITHUB_REPO = 'trip5/EspHome-Led-Clock';
+        const GITHUB_OWNER = GITHUB_REPO.split('/')[0];
+        const REPO_NAME = GITHUB_REPO.split('/')[1];
+        
+        // Global variables
+        let firmwareData = null;
+        let improvSerial = null;
+
+        // DOM elements
+        const languageSelect = document.getElementById('language-select');
+        const installButton = document.getElementById('install-button');
+
+        // Initialize the app
+        async function init() {
+            await loadLatestFirmware();
+            setupEventListeners();
+        }
+
+        // Load latest firmware data from GitHub releases
+        async function loadLatestFirmware() {
+            try {
+                // Fetch firmware-info.json from GitHub Pages (where artifacts are deployed)
+                // Use timestamp to prevent caching
+                const timestamp = new Date().getTime();
+                const firmwareInfoUrl = `https://${GITHUB_OWNER}.github.io/${REPO_NAME}/firmware-info.json?t=${timestamp}`;
+                console.log('Fetching firmware info from:', firmwareInfoUrl);
+                
+                const firmwareInfoResponse = await fetch(firmwareInfoUrl);
+                if (!firmwareInfoResponse.ok) {
+                    throw new Error(`Failed to fetch firmware-info.json: ${firmwareInfoResponse.status}`);
+                }
+                firmwareData = await firmwareInfoResponse.json();
+                console.log('Firmware data:', firmwareData);
+                
+                if (!firmwareData.variants || firmwareData.variants.length === 0) {
+                    throw new Error('No firmware variants found in firmware-info.json');
+                }
+                
+                populateLanguageSelector();
+                
+            } catch (error) {
+                console.error('Error loading firmware:', error);
+                languageSelect.innerHTML = '<option value="">Failed to load firmware</option>';
+            }
+        }
+
+        // Populate the language selector
+        function populateLanguageSelector() {
+            languageSelect.innerHTML = '';
+            
+            firmwareData.variants.forEach((variant, index) => {
+                const option = document.createElement('option');
+                option.value = variant.name;
+                option.textContent = `${variant.name} (${variant.description})`;
+                option.dataset.manifest = variant.manifest;
+                option.dataset.description = variant.description;
+                languageSelect.appendChild(option);
+            });
+            
+            // Auto-select first firmware and trigger change
+            if (firmwareData.variants.length > 0) {
+                onLanguageChange();
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            languageSelect.addEventListener('change', onLanguageChange);
+        }
+
+        // Handle language selection
+        async function onLanguageChange() {
+            const selectedOption = languageSelect.selectedOptions[0];
+            
+            if (!selectedOption || !selectedOption.value) {
+                installButton.style.display = 'none';
+                return;
+            }
+            
+            const manifestPath = selectedOption.dataset.manifest;
+            
+            // Use the manifest URL from GitHub Pages (where artifacts are deployed)
+            const manifestUrl = `https://${GITHUB_OWNER}.github.io/${REPO_NAME}/${manifestPath}`;
+            
+            installButton.setAttribute('manifest', manifestUrl);
+            installButton.style.display = 'block';
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

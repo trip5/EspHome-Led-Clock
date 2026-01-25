@@ -1,15 +1,13 @@
+# Derived from EHLClock-HA.yaml with yaml-derive.py for 303 Clock - this file is not the master file
+
 # My github: https://github.com/trip5
 
 # Please note that this file can be hand-edited but thanks to simple machine-readable instructions, can also be passed through a script to generate a derivative YAML
 # When deriving the YAML for the 303 Clock, the script checks for certain styles of comments and perform actions.  Check the yaml-derive.py script for more information.
 
 substitutions:
-# Sinilink XY-Clock: Keep next 2 lines (delete for others)
-  name:  "led-clock-ha"
-  friendly_name: "LED-Clock-HA"
-# 303 Clock: Uncomment next 2 lines
-#  name:  "led-clock-303-ha"
-#  friendly_name: "LED-Clock-303-HA"
+  name:  "led-clock-303-ha"
+  friendly_name: "LED-Clock-303-HA"
   comment: "EHLClock-HA from Trip5"
   project_name: "Trip5.EspHomeLedClock-HA"
   project_version: "2026.01.25"
@@ -39,10 +37,7 @@ substitutions:
 #  dio_pin: GPIO17
 
 # Mappings are the order of the LED segments. Using the wrong mapping will result in a garbled display!
-# Sinilink XY-Clock: Keep next 1 line (delete for others) / Segment mapping of Sinilink XY-Clock
-  segment_mapping: PGFEDCBA
-# 303 Clock: Uncomment next 1 line / Segment mapping of 303WIFILC01 (303 Clock)
-#  segment_mapping: GBPEDCAF
+  segment_mapping: GBPEDCAF
 # TM1637 units don't actually use segment mapping but the routines that make the colon blink depend on it being specified (PM dot is ignored by the hardware)
 #  segment_mapping: PABCDEFG # TM1637 / normal TM1650 (untested, may not support colon or decimals)
 
@@ -54,32 +49,14 @@ substitutions:
 #  * if there is another segment_mapping to use, it's quite simple to change a regular mapping to an upside-down one...
 #  * The rule is actually fairly simple. Take 2nd, 3rd, 4th and switch with 5th, 6th, 7th in order (TM1650 pattern is easy: PABCDEFG -> PDEFABCG)
 
-# Sinilink XY-Clock: Keep next 3 lines (delete for others) / Sinilink Clock uses these pins for buttons
-  down_button_pin: GPIO9
-  up_button_pin: GPIO10 
-  set_button_pin: GPIO16
-# 303 Clock: Uncomment next 3 lines / 303 Clock uses these pins for buttons
-#  down_button_pin: GPIO15
-#  up_button_pin: GPIO4
-#  set_button_pin: GPIO0
+  down_button_pin: GPIO15
+  up_button_pin: GPIO4
+  set_button_pin: GPIO0
 
-# Sinilink XY-Clock: Keep next 4 lines (delete for others) / Sinilink Clock has these additional GPIOs (the blue LED looks better for status)
-  status_led_pin: GPIO0
-  other_led_pin: GPIO2
-  buzzer_pin: GPIO5
-  key_pin: GPIO14 #	Contact 'KEY'
-# 303 Clock: Uncomment next 1 line / only has 1 LED
-#  status_led_pin: GPIO2
+  status_led_pin: GPIO2
 
 # The following are for the tunes played by the alarm through the passive piezo speaker / buzzer on the Sinilink clock - remove if not needed
 # You can check here: https://picaxe.com/rtttl-ringtones-for-tune-command/ or Search for "RTTTL tunes" to change the tunes
-# Sinilink XY-Clock: Keep next 6 lines (delete for others)
-  tune1_name: "NokiaTune"
-  tune1: "NokiaTune:d=4,o=5,b=225:8e6,8d6,f#,g#,8c#6,8b,d,e,8b,8a,c#,e,2a"
-  tune2_name: "AxelF"
-  tune2: "AxelF:d=8,o=5,b=125:16g,16g,a#.,16g,16p,16g,c6,g,f,4g,d6.,16g,16p,16g,d#6,d6,a#,g,d6,g6,16g,16f,16p,16f,d,a#,2g,4p,16f6,d6,c6,a#,4g,a#.,16g,16p,16g,c6,g,f,4g,d6.,16g,16p,16g,d#6,d6,a#,g,d6,g6,16g,16f,16p,16f,d,a#,2g"
-  tune3_name: "Jeopardy"
-  tune3: "Jeopardy:d=4,o=6,b=125:c,f,c,f5,c,f,2c,c,f,c,f,a.,8g,8f,8e,8d,8c#,c,f,c,f5,c,f,2c,f.,8d,c,a#5,a5,g5,f5,p,d#,g#,d#,g#5,d#,g#,2d#,d#,g#,d#,g#,c.7,8a#,8g#,8g,8f,8e,d#,g#,d#,g#5,d#,g#,2d#,g#.,8f,d#,c#,c,p,a#5,p,g#.5,d#,g#"
 
 esphome:
   name: "${name}"
@@ -99,16 +76,10 @@ esphome:
               - switch.is_on: tz_alt
             then:
               - switch.turn_on: tz_alt
-# Sinilink XY-Clock: Keep next 1 line (delete for others) / The Sinilink uses a DS1307 RTC (supported by ESPHome)
-        - ds1307.read_time:
-# 303 Clock: Uncomment next 1 line / DS1302 RTC (will also require an external component)
-#        - ds1302.read_time:
+        - ds1302.read_time:
 
 esp8266:
-# Sinilink XY-Clock: Keep next 1 line (delete for others) / The Sinilink uses an ESP8285H16 with 2M of flash, the same as ESP_WROOM_02
-  board: esp_wroom_02
-# 303 Clock: Uncomment next 1 line / 303 uses a smaller ESP8266EX with only 1M (same as ESP8285) so make sure to remove alarms and rtttl buzzer from this YAML
-#  board: esp8285
+  board: esp8285
   restore_from_flash: true
   
 wifi:
@@ -139,13 +110,12 @@ external_components:
 #    components: [ tm1650 ]
 #    refresh: 1s
 
-# 303 Clock: Uncomment next 6 lines / Use Trip5's fork of Trombik's DS1302 ESPHome Component
-#  - source:
-#      type: git
-#      url: https://github.com/trip5/esphome-ds1302
-#      ref: main
-#    refresh: 60s
-#    components: [ ds1302 ]
+  - source:
+      type: git
+      url: https://github.com/trip5/esphome-ds1302
+      ref: main
+    refresh: 60s
+    components: [ ds1302 ]
 
 time:
   - platform: sntp # use SNTP as a time source / do not use Home Assistant!
@@ -154,37 +124,22 @@ time:
     update_interval: 24h # This seems like the longest safe amount of time - actual configured update happens in interval section
 
 # Check if alarms need to be played (needs to be under whichever platform is my_time) - remove if alarms are not needed
-# Sinilink XY-Clock: Keep next 5 lines (delete for others)
-    on_time:
-      - seconds: 0
-        minutes: /1 # repeat every minute
-        then:
-          - script.execute: check_alarms
 
-# Sinilink XY-Clock: Keep next 4 lines (delete for others) / Sinilink Clock uses a DS1307 RTC
-  - platform: ds1307
+
+  - platform: ds1302
     id: rtc_time
-    timezone: "${time_zone}"
+    cs_pin: GPIO5
+    dio_pin: GPIO14
+    clk_pin: GPIO16
     update_interval: never
-
-# 303 Clock: Uncomment next 7 lines / 303 Clock uses a DS1302 RTC (delete the above DS1307 section if using this RTC)
-#  - platform: ds1302
-#    id: rtc_time
-#    cs_pin: GPIO5
-#    dio_pin: GPIO14
-#    clk_pin: GPIO16
-#    update_interval: never
-#    timezone: "${time_zone}"
+    timezone: "${time_zone}"
 
 script:
   - id: sync_the_time
     mode: restart
     then:
       - lambda: 'id(my_time)->update();'
-# Sinilink XY-Clock: Keep next 1 line (delete for others) / Sinilink Clock uses a DS1307 RTC
-      - ds1307.write_time:
-# 303 Clock: Uncomment next 1 line / 303 Clock uses a DS1302 RTC
-#      - ds1302.write_time:
+      - ds1302.write_time:
 # If no RTC is being used, delete above write_time lines and delete 4 lines in the below script - they start with id(rtc_time)
   - id: set_timezone
     mode: restart
@@ -218,28 +173,6 @@ script:
                 }
                 //id(my_time)->call_setup(); // might be needed?
 
-# Sinilink XY-Clock: Keep next 21 lines (delete for others) / The script that actually plays the alarms - if you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed - remove if not needed
-  - id: check_alarms
-    mode: restart
-    then:
-      - lambda: |-
-          std::time_t tz1time = (id(my_time).now().timestamp);
-          std::tm *tz1time_astm = localtime(&tz1time);
-          int tzhr = tz1time_astm->tm_hour;
-          int tzmin = tz1time_astm->tm_min;
-          if (id(alarms_on).state == true && id(alarm1_hour).state == tzhr && id(alarm1_min).state == tzmin) {
-            // need to put all alarm tunes that exist nested here
-            if (id(alarm1_tune).state == 1) { id(tune1).press(); };
-            if (id(alarm1_tune).state == 2) { id(tune2).press(); };
-            if (id(alarm1_tune).state == 3) { id(tune3).press(); };
-          };
-          // if you add an alarm3, duplicate and edit the entire next 'if' (and edit as needed)
-          if (id(alarms_on).state == true && id(alarm2_hour).state == tzhr && id(alarm2_min).state == tzmin) {
-            // need to put all alarm tunes that exist nested here
-            if (id(alarm2_tune).state == 1) { id(tune1).press(); };
-            if (id(alarm2_tune).state == 2) { id(tune2).press(); };
-            if (id(alarm2_tune).state == 3) { id(tune3).press(); };
-          };
 
 # The next section interacts with Home Assistant - it's possible the device doesn't need Home Assistant, in which case delete this whole section
 api:
@@ -249,13 +182,6 @@ api:
   reboot_timeout: 15min # 15min is default
   custom_services: true
   services:
-# Sinilink XY-Clock: Keep next 6 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
-    - service: tune
-      variables:
-        tune: string
-      then:
-        - rtttl.play:
-            rtttl: !lambda 'return tune;'
 # This next section creates the Home Assistant services to allow messages to be displayed
     - service: message
       variables:
@@ -451,14 +377,7 @@ output:
     pin:
       number: ${status_led_pin}
       inverted: true
-# Sinilink XY-Clock: Keep next 3 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
-  - platform: esp8266_pwm
-    pin: ${buzzer_pin}
-    id: rtttl_out
 
-# Sinilink XY-Clock: Keep next 2 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
-rtttl:
-  output: rtttl_out
 
 light:
   - platform: monochromatic
@@ -503,19 +422,10 @@ binary_sensor:
           - OFF for at least 0.5s
         then:
           - number.increment: brightness
-# Sinilink XY-Clock: Keep next 5 lines (delete for others)
-      #Hold UP will toggle enable or disable alarms
-      - timing:
-          - ON for at least 1s
-        then:
-          - switch.toggle: alarms_on
   - platform: gpio
     pin:
       number: ${down_button_pin}
-# Sinilink XY-Clock: Keep next 1 line (delete for others)
-      inverted: true # Sinilink true / 303 false
-# 303 Clock: Uncomment next 1 line
-#      inverted: false
+      inverted: false
       mode: INPUT_PULLUP
     name: "Down button"
     filters:
@@ -906,35 +816,6 @@ globals:
     initial_value: 'false'
 
 # Tune Buttons (edit as needed, verify the selector below matches the number available)
-# Sinilink XY-Clock: Keep next 28 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
-button:
-  - platform: template
-    id: tune1
-    name: "Tune 1: ${tune1_name}"
-    internal: false
-    on_press:
-      - logger.log: "Playing ${tune1_name}"
-      - rtttl.play: "${tune1}"
-    entity_category: config
-    icon: mdi:bell
-  - platform: template
-    id: tune2
-    name: "Tune 2: ${tune2_name}"
-    internal: false
-    on_press:
-      - logger.log: "Playing ${tune2_name}"
-      - rtttl.play: "${tune2}"
-    entity_category: config
-    icon: mdi:bell
-  - platform: template
-    id: tune3
-    name: "Tune 3: ${tune3_name}"
-    internal: false
-    on_press:
-      - logger.log: "Playing ${tune3_name}"
-      - rtttl.play: "${tune3}"
-    entity_category: config
-    icon: mdi:bell
 
 switch:
   - platform: template
@@ -1041,28 +922,6 @@ switch:
     icon: mdi:home-assistant
 
 # Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
-# Sinilink XY-Clock: Keep next 21 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
-  - platform: template
-    name: "Alarms On"
-    id: alarms_on
-    restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: true
-    turn_on_action:
-        - logger.log: "Alarms On"
-        - lambda: |-
-            id(message_alive_time) = 1;
-            id(message_display_time) = 1;
-            id(message_clock_time) = 0;
-            id(message) = ("ALon");
-    turn_off_action:
-        - logger.log: "Alarms Off"
-        - lambda: |-
-            id(message_alive_time) = 1;
-            id(message_display_time) = 1;
-            id(message_clock_time) = 0;
-            id(message) = ("Aoff");
-    entity_category: config
-    icon: mdi:alarm
 
 select:
   - platform: template
@@ -1169,111 +1028,4 @@ number:
     entity_category: config
     icon: mdi:home-assistant
 
-# Sinilink XY-Clock: Keep next 52 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
-# Alarms UI Selectors (each alarm requires tune/hour/min selectors)
-# Alarm 1 UI Selector Begins
-  - platform: template
-    name: "Alarm 1 Tune (0=Off)"
-    id: alarm1_tune
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 3 # set this to how many alarms you have available
-    initial_value: 0
-    mode: box
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Alarm 1 Tune: %.0f", x);
-    entity_category: config
-    icon: mdi:music-note
-  - platform: template
-    name: "Alarm 1 Hour"
-    id: alarm1_hour
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 23
-    initial_value: 0
-    mode: box
-    unit_of_measurement: hours
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Alarm 1 Hour: %.0f", x);
-    entity_category: config
-    icon: mdi:alarm
-  - platform: template
-    name: "Alarm 1 Minutes"
-    id: alarm1_min
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 59
-    initial_value: 0
-    mode: box
-    unit_of_measurement: minutes
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Alarm 1 Minutes: %.0f", x);
-    entity_category: config
-    icon: mdi:alarm
 
-# Sinilink XY-Clock: Keep next 53 lines (delete for others)
-# If you require more alarms, copy from the next line to the end, paste, and edit all variables/names... (ie. Alarm 2 -> Alarm 3, alarm2_tune -> alarm3_tune, etc.)
-# WARNING: keep in mind that the ESP8266 has limited flash memory... it may not work after a certain number (only 2 have been tested but you could probably get 3 or 4
-# Alarm 2 UI Selector Begins
-  - platform: template
-    name: "Alarm 2 Tune (0=Off)"
-    id: alarm2_tune
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 3 # set this to how many alarms you have available
-    initial_value: 0
-    mode: box
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Alarm 2 Tune: %.0f", x);
-    entity_category: config
-    icon: mdi:music-note
-  - platform: template
-    name: "Alarm 2 Hour"
-    id: alarm2_hour
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 23
-    initial_value: 0
-    mode: box
-    unit_of_measurement: hours
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Alarm 2 Hour: %.0f", x);
-    entity_category: config
-    icon: mdi:alarm
-  - platform: template
-    name: "Alarm 2 Minutes"
-    id: alarm2_min
-    restore_value: true
-    optimistic: true
-    step: 1
-    min_value: 0
-    max_value: 59
-    initial_value: 0
-    mode: box
-    unit_of_measurement: minutes
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Alarm 2 Minutes: %.0f", x);
-    entity_category: config
-    icon: mdi:alarm

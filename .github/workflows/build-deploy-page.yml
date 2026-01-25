@@ -1,0 +1,72 @@
+
+name: Build and Deploy GitHub Page
+
+on:
+  workflow_run:
+    workflows: ["Build and Release Firmware"]
+    types:
+      - completed
+  push:
+    branches: [ '**' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install mkdocs-material
+
+      - name: Copy README and images to docs
+        run: |
+          cp README.md docs/index.md
+          cp -r images docs/
+
+      - name: Convert relative YAML links to GitHub URLs
+        run: |
+          sed -i 's|](\([^:)]*\.yaml\))|](https://github.com/trip5/EspHome-Led-Clock/blob/main/\1)|g' docs/index.md
+
+      - name: Download latest release firmware (.bin files)
+        run: |
+          mkdir -p docs/firmware
+          if ! gh release download --repo trip5/EspHome-Led-Clock --pattern '*.bin' --dir docs/firmware; then
+            echo "::error ::No release found. There must be a release."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build documentation
+        run: mkdocs build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build-deploy
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

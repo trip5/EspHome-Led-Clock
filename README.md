@@ -1,4 +1,8 @@
+![image](./images/EHLC.png)
+
 # EspHome-Led-Clock
+
+***This documentation is the same on the [Github Page](https://trip5.github.io/EspHome-Led-Clock/), which may be easier to read than the [Github Repository](https://github.com/trip5/EspHome-Led-Clock).***
 
 EHLC is meant to be used on ESP-based LED Clocks using ESPHome. So far, it works with Sinilink Wifi XY-Clocks and 303WifiLC01 Clocks. It can probably be adapted for use with other 7-Segment Display clocks. And, of course, it's ESPHome, so it's only limited by your imagination and skill.
 
@@ -10,6 +14,7 @@ Due to memory constraints on the ESP8266 these clocks use, I've decided to split
 
 ---
 
+<!--
 ## New to ESPHome?
 
 Try following this step-by-step guide to compiling a YAML:
@@ -17,6 +22,7 @@ Try following this step-by-step guide to compiling a YAML:
 
 This guide is proposed for the ESPHome documentation and if you find it helpful, it would be great if you could leave a comment in the
 [Pull Request](https://github.com/esphome/esphome-docs/pull/4411) to get them added to the ESPHome Docs officially.
+-->
 
 ### New to Flashing a Device?
 
@@ -24,22 +30,14 @@ Please read this: [Physically Connecting to your Device](https://esphome.io/guid
 
 ---
 
-## Sinilink XY-Clock
+## LED Clocks
+
+### Sinilink XY-Clock
 
 ![image](./images/sinilink_XY-Clock.jpg)
 
 This is the link on Aliexpress I have personally used but I am sure there are others:
 https://www.aliexpress.com/item/1005004427096126.html
-
-### Flashing Pins
-
-Don't forget to connect GPIO0 to GND when first connecting to your serial flasher!
-
-![image](./images/sinilink_XY-Clock-Pins.jpg)
-
-Also, sometimes I've had to plug in the USB cable after making the connections... not sure why.
-
----
 
 ## 303WifiLC01 Clock
 
@@ -48,7 +46,26 @@ Also, sometimes I've had to plug in the USB cable after making the connections..
 This is the link on Aliexpress I have personally used but I am sure there are others:
 https://www.aliexpress.com/item/1005003163124952.html
 
-### Flashing Pins
+### DIY TM1637 "Box Clock"
+
+![image](./images/TM1637-boxclock.jpg)
+
+I built this using an ESP32 and a TM1637 Display.
+If you've got the ability to make one, it's not too hard to edit the `yaml` file to adapt it.
+
+### Flashing
+
+You can use ESPHome to make it completely custom or you can use my [Web Tool](https://trip5.github.io/EspHome-Led-Clock/firmware.html).
+
+#### Sinilink XY-Clock
+
+Don't forget to connect GPIO0 to GND when first connecting to your serial flasher!
+
+![image](./images/sinilink_XY-Clock-Pins.jpg)
+
+Also, sometimes I've had to plug in the USB cable after making the connections... not sure why.
+
+#### 303WifiLC01 Clock
 
 Don't forget to connect GPIO0 to GND when first connecting to your serial flasher!
 
@@ -56,17 +73,10 @@ Don't forget to connect GPIO0 to GND when first connecting to your serial flashe
 
 ---
 
-## Handmade TM1637 Clock (with a Lolin ESP32 Lite)
-
-![image](./images/TM1637-boxclock.jpg)
-
----
-
 ## Using This firmware
 
 This is ESPHome, so it's not pretty but very functional.  You should set your wifi information in the YAML and edit it carefully, especially if not using a Sinilink XY-Clock.
-I have included functionality for 2 alarms for now but you can likely increase that number.  You can also edit the tunes available to the clock by editing the RTTTL code
-(see below for some useful links).
+I have included functionality for 2 alarms for now but you can likely increase that number.  You can also edit the tunes available to the clock by editing the RTTTL code.
 
 If using this device on a network outside your usual, ESPHome will, after 10 seconds (set by the YAML), give up trying to connect to its "home" network and enter AP mode.
 You should then connect to the hotspot (with a mobile phone) and then go to 192.168.4.1 in a browser to select which local wifi network you would like it to connect to.
@@ -89,7 +99,7 @@ Time can be synced to the Internet at configurable intervals between 1 - 24 hour
 
 The clock can play alarms at configurable intervals. The Sinilink Clock has a piezo speaker, so it can play a Nokia-style tune. The 303 does not (so the file must be edited to remove a lot of lines... there are many notes in the YAML to make this easier).
 
-Please note the default YAML has 2 alarms available and 3 tunes.  See below for more information regarding the speaker and how to play tunes.
+Please note the default YAML has 2 alarms available and 3 tunes.  See below for more information regarding the ([speaker](#speaker-notes) for some useful links) and how to play tunes.
 
 ### Flip It!
 
@@ -101,9 +111,11 @@ Be sure to check that the yaml file has `backward: true`.
 
 ## Non-HA Version
 
-The file [`EHLClock.yaml`](EHLClock.yaml) contains functions useful for using the clock as... mostly just a clock but with some power-saving functions.
+The file [`EHLClock.yaml`](EHLClock.yaml) contains functions useful for using the Sinilink XY-Clock as... mostly just a clock but with some power-saving functions.
 It includes all of the functions above as well as these below.  This version has a WebUI which can be accessed via it's IP after connecting the clock to Wifi.
 So if you need a travel clock, this may be the ideal one for you.  It can still be controlled by Home Assistant as well but is not dependent on it to function.
+
+The file [`EHLClock-303.yaml`](EHLClock-303.yaml) is derived from the above master file for the 303WifiLC01 Clock.
 
 ### Time Zone Offset
 
@@ -116,7 +128,7 @@ It is possible to set an offset like 0.01 (which would be 36 seconds).  Be caref
 ### Time Zone POSIX
 
 Thanks to [andrewjswan](https://github.com/andrewjswan) for the idea to make the time zone editable directly in the WebUI.
-It must be in POSIX format (see notes below).  Don't forget to hit enter to make it stick.
+It must be in POSIX format (see [notes](#posix-time-strings) below).  Don't forget to hit enter to make it stick.
 
 ### Wifi Stop Seek
 
@@ -206,8 +218,10 @@ You could consider hosting the file on another machine in-house, too by using so
 
 ## Home Assistant Version
 
-The file [`EHLClock-HA.yaml`](EHLClock-HA.yaml) contains functions useful for using the clock with Home Assistant.
+The file [`EHLClock-HA.yaml`](EHLClock-HA.yaml) contains functions useful for using the Sinilink XY-Clock with Home Assistant.
 It does not include the WebUI, Time Zone Offset, Time Zone POSIX, or Wifi Stop Seek but it does includes all of the functions below.
+
+The file [`EHLClock_303-HA.yaml`](EHLClock_303-HA.yaml) is derived from the above master file for the 303WifiLC01 Clock.
 
 ### Alternate Time Zone
 
@@ -227,7 +241,7 @@ This example will send a message that will display for 3 seconds before revertin
 
 ![image](./images/EHLC_Home_Assistant_tune.png)
 
-This service is just for the Sinilink Clock and other clocks with a piezo speaker.  See above and below for more info about RTTTL music.
+This service is just for the Sinilink Clock and other clocks with a piezo speaker.  See [notes](#speaker-notes) for more info about RTTTL music.
 
 ### Template Sensors
 
@@ -283,7 +297,8 @@ It's always best to fully erase and re-flash when upgrading the version of the f
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
-| 2026.01.22 | Added POSIX to non-HA version and overrides to HA version, removed device's friendly name from entities, mdi icons added, various fixes |
+| 2026.01.25 | Re-introduced variant YAML files with `yaml-derive.py`, minor fixes, Github page added with mkdocs and web flashing tool |
+| 2026.01.22 | Added POSIX to non-HA version and overrides to HA version, removed device's friendly name from entities, mdi icons & improv serial added, various fixes |
 | 2025.05.26 | Very minor fix to sensors, HA version fixed to actually play alarms on time |
 | 2024.12.09 | Recoded to remove many global variables, relying on numbers and switches where possible, hard-coded variables removed, alarms version re-integrated into main versions |
 | 2024.11.10 | TM1650 driver & YAMLs updated to allow upside-down display, OTA display status works, power measurements complete |
