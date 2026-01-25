@@ -43,16 +43,26 @@ jobs:
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Final version: ${VERSION}"
 
-      - name: Generate firmware variants
+      - name: Preparing base files and Sanitizing Secrets
         run: |
-          echo "🔄 Generating firmware variants..."
           mkdir -p generated_yamls
-          echo "📝 Creating 303 Clock variants..."
-          python yaml-derive.py EHLClock.yaml "303 Clock" generated_yamls/EHLClock-303.yaml
-          python yaml-derive.py EHLClock-HA.yaml "303 Clock" generated_yamls/EHLClock-303-HA.yaml
           echo "📋 Copying master files..."
           cp EHLClock.yaml generated_yamls/EHLClock.yaml
           cp EHLClock-HA.yaml generated_yamls/EHLClock-HA.yaml
+          echo "🔧 Removing: ssid name, ssid password, ap password, ota password, encryption key..."
+          for base_file in generated_yamls/EHLClock.yaml generated_yamls/EHLClock-HA.yaml; do
+            sed -i '/- ssid: !secret wifi_ssid/d' "$base_file"
+            sed -i '/password: !secret wifi_password/d' "$base_file"
+            sed -i '/password: !secret ap_password/d' "$base_file"
+            sed -i '/password: !secret ota_password/d' "$base_file"
+            sed -i '/key: !secret encryption_key/d' "$base_file"
+          done
+
+      - name: Generate hardware variants
+        run: |
+          echo "📝 Creating 303 Clock variants..."
+          python yaml-derive.py generated_yamls/EHLClock.yaml "303 Clock" generated_yamls/EHLClock-303.yaml
+          python yaml-derive.py generated_yamls/EHLClock-HA.yaml "303 Clock" generated_yamls/EHLClock-303-HA.yaml
           echo "✅ Generated all firmware variants"
           ls -la generated_yamls/
 
