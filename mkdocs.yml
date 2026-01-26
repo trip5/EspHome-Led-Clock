@@ -1,8 +1,8 @@
-site_name: EspHome-Led-PixelClock
+site_name: EspHome-Led-Clock
 site_description: ESPHome firmware for LED pixel clock with multi-language support
-site_url: https://trip5.github.io/EspHome-Led-PixelClock/
-repo_url: https://github.com/trip5/EspHome-Led-PixelClock
-repo_name: trip5/EspHome-Led-PixelClock
+site_url: https://trip5.github.io/EspHome-Led-Clock/
+repo_url: https://github.com/trip5/EspHome-Led-Clock
+repo_name: trip5/EspHome-Led-Clock
 
 theme:
   name: material
@@ -35,7 +35,7 @@ markdown_extensions:
   - pymdownx.magiclink:
       repo_url_shorthand: true
       user: trip5
-      repo: EspHome-Led-PixelClock
+      repo: EspHome-Led-Clock
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
