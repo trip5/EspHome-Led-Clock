@@ -925,7 +925,7 @@ switch:
 
 select:
   - platform: template
-    name: "Colon Blink (0=Off / 1=On / 2=Always On)"
+    name: "Colon Blink (0=Off ⁄ 1=On ⁄ 2=Always On)"
     id: blink_option_select
     restore_value: true
     optimistic: true
