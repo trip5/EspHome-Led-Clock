@@ -2,7 +2,7 @@
 
 # EspHome-Led-Clock
 
-***This documentation is the same on the [Github Page](https://trip5.github.io/EspHome-Led-Clock/), which may be easier to read than the [Github Repository](https://github.com/trip5/EspHome-Led-Clock).***
+***This documentation is the same on the [Github Page](https://trip5.github.io/EspHome-Led-Clock/), which may be easier to read.***
 
 EHLC is meant to be used on ESP-based LED Clocks using ESPHome. So far, it works with Sinilink Wifi XY-Clocks and 303WifiLC01 Clocks. It can probably be adapted for use with other 7-Segment Display clocks. And, of course, it's ESPHome, so it's only limited by your imagination and skill.
 
