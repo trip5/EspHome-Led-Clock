@@ -37,7 +37,7 @@ jobs:
 
       - name: Update GitHub link in documentation index
         run: |
-          sed -i "0,/\[Github Page\](https:\/\/[^)]*)/s//[Github Repository](https:\/\/github.com\/${{ github.repository }})/" docs/index.md
+          sed -i "0,\\[Github Page\\](https://[^)]*)/s|\\[Github Page\\](https://[^)]*)|[Github Repository](https://github.com/${{ github.repository }})|" docs/index.md
           sed -i "0,/easier to read/s//easier to explore/" docs/index.md
 
       - name: Convert relative YAML links to GitHub URLs
