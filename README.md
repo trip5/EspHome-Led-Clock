@@ -359,4 +359,4 @@ My fork (probably the same): https://github.com/trip5/esphome-ds1302
 
 EspHome-Led-PixelClock: https://github.com/trip5/EspHome-Led-PixelClock
 
-EspHome-VFD-Clock: https://github.com/trip5/EspHome-VFD-PixelClock
+EspHome-VFD-Clock: https://github.com/trip5/EspHome-VFD-Clock
