@@ -1,6 +1,6 @@
 {
   "name": "EspHome-Led-Clock",
-  "version": "2026.01.25",
+  "version": "2026.03.24",
   "home_assistant_domain": "esphome",
   "funding_url": "https://github.com/sponsors/trip5",
   "builds": [
