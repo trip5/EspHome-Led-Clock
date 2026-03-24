@@ -12,7 +12,7 @@ substitutions:
 #  friendly_name: "LED-Clock-303"
   comment: "EHLClock from Trip5"
   project_name: "Trip5.EspHomeLedClock"
-  project_version: "2026.01.25"
+  project_version: "2026.03.24"
   waiting: "EHLC" # shows when waiting for time
 
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
@@ -152,6 +152,18 @@ external_components:
 #      ref: main
 #    refresh: 60s
 #    components: [ ds1302 ]
+
+# Use Trip5's ehDP (eh Discovery Protocol)
+  - source:
+      type: git
+      url: https://github.com/trip5/ehDP
+      ref: main
+    refresh: 60s
+    components: [ ehdp ]
+
+ehdp:
+  material_symbol: "0xe8b5" # Schedule (clock face)
+  id: my_ehdp
 
 time:
   - platform: sntp # use SNTP as a time source / do not use Home Assistant!
@@ -1048,6 +1060,18 @@ switch:
             id(message) = ("Aoff");
     entity_category: config
     icon: mdi:alarm
+  - platform: template
+    name: "ehDP Discovery"
+    id: ehdp_discovery
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
+    lambda: return id(my_ehdp).is_enabled();
+    turn_on_action:
+      - lambda: id(my_ehdp).enable();
+    turn_off_action:
+      - lambda: id(my_ehdp).disable();
+    entity_category: config
+    icon: mdi:home-variant
 
 select:
   - platform: template

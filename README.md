@@ -119,6 +119,8 @@ Be sure to check that the yaml file has `backward: true`.
 
 ## Non-HA Version
 
+The Non-HA version will function completely without Home Assistant and can still be controlled by accessing the WebUI via its IP or mDNS address, easily found with [eh Device Scanner](https://github.com/trip5/eh-Device-Scanner).
+
 The file [`EHLClock.yaml`](EHLClock.yaml) contains functions useful for using the Sinilink XY-Clock as... mostly just a clock but with some power-saving functions.
 It includes all of the functions above as well as these below.  This version has a WebUI which can be accessed via it's IP after connecting the clock to Wifi.
 So if you need a travel clock, this may be the ideal one for you.  It can still be controlled by Home Assistant as well but is not dependent on it to function.
@@ -305,6 +307,7 @@ It's always best to fully erase and re-flash when upgrading the version of the f
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
+| 2026.03.24 | Added ehDP to non-HA versions. Get [eh Device Scanner](https://github.com/trip5/eh-Device-Scanner) to use it. |
 | 2026.01.25 | Re-introduced variant YAML files with `yaml-derive.py`, minor fixes, Github page added with mkdocs and web flashing tool |
 | 2026.01.22 | Added POSIX to non-HA version and overrides to HA version, removed device's friendly name from entities, mdi icons & improv serial added, various fixes |
 | 2025.05.26 | Very minor fix to sensors, HA version fixed to actually play alarms on time |
