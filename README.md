@@ -83,15 +83,17 @@ You can read this: [Physically Connecting to your Device](https://esphome.io/gui
 
 ## Using This firmware
 
-This is ESPHome, so it's not pretty but very functional.  You should set your wifi information in the YAML and edit it carefully, especially if not using a Sinilink XY-Clock.
-I have included functionality for 2 alarms for now but you can likely increase that number.  You can also edit the tunes available to the clock by editing the RTTTL code.
+This is ESPHome, so it's not pretty but very functional.
+
+### Connecting to Wi-Fi
 
 If using this device on a network outside your usual, ESPHome will, after 10 seconds (set by the YAML), give up trying to connect to its "home" network and enter AP mode.
-You should then connect to the hotspot (with a mobile phone) and then go to 192.168.4.1 in a browser to select which local wifi network you would like it to connect to.
-The clock will display its IP address on boot and also by holding down the set button for more than 1 second. When returning home, you will have to go through this process again.
-Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (the non-HA version uses SNTP by default).
+You should then connect to the hotspot with a mobile phone and hopefully you will get a pop-up message that will assist in opening your browser to the device's wireless configuration.
 
-There does appear to be some errors with "Component preferences took a long time for an operation" but it only happens when saving persistent variables to flash and doesn't seem to affect functionality, unless you try to change a variable during this moment.
+If not, then open your web browser and go to `http://192.168.4.1` to enter the wireless configuration. If the device has wi-fi credentials but they are invalid, this screen may show the WebUI instead.
+Try visiting an unhandled endpoint like `http://192.168.4.1/wifi` (almost anything will work here).
+
+When connected, the clock will display its IP address. Be sure if you are using this clock as a travel clock to NOT use Home Assistant as a time source (it uses SNTP by default).
 
 ### Date Display
 
@@ -300,12 +302,6 @@ If you need to make a custom POSIX format you can look [`here`](https://develope
 
 Because these devices save preferences to flash, updates that introduce new features (which I do often) may fragment the storage space, causing strange behavior.
 It's always best to fully erase and re-flash when upgrading the version of the firmware.
-
-### Connecting to A New Wi-Fi
-
-When failing to connect to the wireless network, the device will enter AP mode.  Connect to the device's hotspot with your phone and open a browser if you don't get a pop-up directing you.
-
-Typically, visiting `http://192.168.4.1` is enough to enter the wiresless configuration screen.  If the device has wi-fi credentials but they are invalid, this screen may show the WebUI instead.  Try visiting an unhandled endpoint like `http://192.168.4.1/wifi` (almost anything will work here).
 
 ---
 
