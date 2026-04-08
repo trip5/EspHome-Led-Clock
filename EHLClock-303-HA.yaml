@@ -10,7 +10,7 @@ substitutions:
   friendly_name: "LED-Clock-303-HA"
   comment: "EHLClock-HA from Trip5"
   project_name: "Trip5.EspHomeLedClock-HA"
-  project_version: "2026.01.25"
+  project_version: "2026.04.08"
   waiting: "EHLC" # shows when waiting for time
 
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
@@ -222,13 +222,13 @@ logger:
   level: NONE
 # Logging is disabled to save memory but you can easily enable logging (and stop the various sensors/switches from spamming the log) by deleting the above line and uncommenting the lines below
 # Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing - please note it's also disabled in the web_server section
-#  level: INFO
+#  level: DEBUG
 #  logs:
 #    sensor: ERROR
-#    text_sensor: NONE
+#    text_sensor: ERROR
 #    switch: NONE
 #    light: NONE
-#    number: NONE
+#    number: ERROR
 #    rtttl: NONE
 
 # Web Server is disabled due to memory constraints.  Enable at your own risk (consider removing captive_portal, logging to save memory)
@@ -236,8 +236,8 @@ logger:
 #  port: 80
 #  ota: true
 #  include_internal: false # true will expose more than needed to the Web UI
-#  version: 2 # version 3 is much larger but possible if local is false
-#  local: true # will download www.js and serve it directly from the clock
+#  version: 2 # version 3 is more efficient but cuts off many field names
+#  # local: true # will download www.js and serve it directly from the clock (may break the Web UI)
 #  log: false # disabling in the WebUI to save memory
 
 ota:
@@ -480,7 +480,7 @@ display:
     # TM1637: remove the above 3 lines and uncomment the next 2 lines
     # clk_pin: ${clk_pin}
     # dio_pin: ${dio_pin}
-    # If you are using either the Sinilink or 303, there should be no need to edit anything inside this lambda below!
+    # If you are using either the Sinilink or 303 (or any other 4-digit display), there should be no need to edit anything inside this lambda below!
     lambda: |-
       // Display the message if all conditions are met
       if (id(my_time).now().is_valid()) {

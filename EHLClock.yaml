@@ -12,7 +12,7 @@ substitutions:
 #  friendly_name: "LED-Clock-303"
   comment: "EHLClock from Trip5"
   project_name: "Trip5.EspHomeLedClock"
-  project_version: "2026.03.24"
+  project_version: "2026.04.08"
   waiting: "EHLC" # shows when waiting for time
 
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
@@ -20,6 +20,7 @@ substitutions:
   # If you need to make a custom POSIX format you can look here: https://developer.ibm.com/articles/au-aix-posix/)
   # or even better, use this POSIX Generator (courtesy of TopYuan): https://www.topyuan.top/posix
   time_zone: "AST4ADT,M3.2.0,M11.1.0"
+  alt_time_zone: "KST-9"
 
 # Pins for I2C RTC are same for Sinilink and 303 Clocks
   scl_pin: GPIO12
@@ -89,6 +90,9 @@ esphome:
         - ds1307.read_time:
 # 303 Clock: Uncomment next 1 line / DS1302 RTC (will also require an external component)
 #        - ds1302.read_time:
+    - priority: -100
+      then:
+        - lambda: 'id(ehdp_discovery).publish_state(id(my_ehdp).is_enabled());'
 
 esp8266:
 # Sinilink XY-Clock: Keep next 1 line (delete for others) / The Sinilink uses an ESP8285H16 with 2M of flash, the same as ESP_WROOM_02
@@ -119,6 +123,7 @@ wifi:
         then:
           - button.press: display_ip
     - script.execute: sync_the_time
+    - script.execute: force_weather_update
   on_disconnect:
     - if:
         condition:
@@ -153,7 +158,7 @@ external_components:
 #    refresh: 60s
 #    components: [ ds1302 ]
 
-# Use Trip5's ehDP (eh Discovery Protocol)
+# Use Trip5's ehDP (eh Discovery Protocol) ESPHome Component
   - source:
       type: git
       url: https://github.com/trip5/ehDP
@@ -161,9 +166,28 @@ external_components:
     refresh: 60s
     components: [ ehdp ]
 
+# Use Trip5's ESPHome-Open-Meteo Component
+  - source:
+      type: git
+      url: https://github.com/trip5/ESPHome-Open-Meteo
+      ref: main
+    refresh: 60s
+    components: [ open_meteo ]
+
 ehdp:
   material_symbol: "0xe8b5" # Schedule (clock face)
   id: my_ehdp
+  enable_disable: true
+
+http_request:
+  verify_ssl: false
+
+open_meteo:
+  id: weather
+  latitude: !lambda 'return id(latitude).state;'
+  longitude: !lambda 'return id(longitude).state;'
+  update_interval: 15min  # initial - override by weather_update_interval
+  use_https: false
 
 time:
   - platform: sntp # use SNTP as a time source / do not use Home Assistant!
@@ -213,9 +237,12 @@ script:
     then:
       - delay: 250ms # need states to stick before updating (helps prevent crashes, too)
       - lambda: |-
-          if (id(alt_time_zone_on).state && !id(alt_timezone).state.empty()) {
+          if (id(tz_alt).state && !id(alt_timezone).state.empty()) {
             id(my_time)->set_timezone(id(alt_timezone).state.c_str());
             id(rtc_time)->set_timezone(id(alt_timezone).state.c_str());
+          } else if (!id(main_timezone).state.empty()) {
+            id(my_time)->set_timezone(id(main_timezone).state.c_str());
+            id(rtc_time)->set_timezone(id(main_timezone).state.c_str());
           } else {
             id(my_time)->set_timezone(("${time_zone}"));
             id(rtc_time)->set_timezone("$(time_zone}");
@@ -234,6 +261,52 @@ script:
           ESP_LOGI("info", "Display Off deactivated");
           id(display_off_time_count) = 0;
           id(display_off) = false;
+  - id: force_weather_update
+    mode: restart
+    then:
+      - delay: 10s
+      - component.update: weather
+  - id: build_weather_message
+    mode: restart
+    then:
+      - delay: 100ms
+      - lambda: |-
+          // Check if weather data is stale (> 1 hour old)
+          if (id(my_time).now().is_valid() && !std::isnan(id(weather_update_timestamp).state) &&
+              (id(my_time).now().timestamp - (time_t)id(weather_update_timestamp).state) > 3600) {
+            ESP_LOGI("info", "Weather data is stale, clearing");
+            id(weather_combined).publish_state("");
+            return;
+          }
+          std::string msg = "";
+          char tmpstring[32];
+          // Temperature (C or F), fit to 4 chars, use ~ for degree, drop C/F if too long
+          if (!std::isnan(id(weather_temperature_c).state) && id(weather_2_temperature_c).state) {
+            int temp = (int)roundf(id(weather_temperature_c).state);
+            char tempstr[8];
+            snprintf(tempstr, sizeof(tempstr), "%d", temp);
+            std::string tstr = tempstr;
+            tstr += "~";
+            if (tstr.length() < 4) tstr += "C";
+            // Only keep up to 4 chars
+            if (tstr.length() > 4) tstr = tstr.substr(0, 4);
+            msg += tstr;
+            msg += " ";
+          }
+          if (!std::isnan(id(weather_temperature_f).state) && id(weather_2_temperature_f).state) {
+            int temp = (int)roundf(id(weather_temperature_f).state);
+            char tempstr[8];
+            snprintf(tempstr, sizeof(tempstr), "%d", temp);
+            std::string tstr = tempstr;
+            tstr += "~";
+            if (tstr.length() < 4) tstr += "F";
+            if (tstr.length() > 4) tstr = tstr.substr(0, 4);
+            msg += tstr;
+            msg += " ";
+          }
+          // Finish: Remove trailing space if present
+          if (!msg.empty() && msg.back() == ' ') msg.pop_back();
+          id(weather_combined).publish_state(msg);
 
 # Sinilink XY-Clock: Keep next 21 lines (delete for others) / The script that actually plays the alarms - if you want to add/subtract alarms or tunes, take a look at the nested 'if' states - copy/paste/edit as needed - remove if not needed
   - id: check_alarms
@@ -272,21 +345,21 @@ logger:
   level: NONE
 # Logging is disabled to save memory but you can easily enable logging (and stop the various sensors/switches from spamming the log) by deleting the above line and uncommenting the lines below
 # Note that increasing the level uses up memory (which this device has very little available) and may cause errors and/or crashing - please note it's also disabled in the web_server section
-#  level: INFO
+#  level: DEBUG
 #  logs:
 #    sensor: ERROR
-#    text_sensor: NONE
+#    text_sensor: ERROR
 #    switch: NONE
 #    light: NONE
-#    number: NONE
+#    number: ERROR
 #    rtttl: NONE
 
 web_server:
   port: 80
   # ota: false # true by default
   include_internal: false # true will expose more than needed to the Web UI
-  version: 2 # version 3 is much larger but possible if local is false
-  local: true # will download www.js and serve it directly from the clock
+  version: 2 # version 3 is more efficient but cuts off many field names
+  # local: true # will download www.js and serve it directly from the clock (may break the Web UI)
   log: false # disabling in the WebUI to save memory
 
 ota:
@@ -351,6 +424,27 @@ text_sensor:
     entity_category: diagnostic
     icon: mdi:github
     disabled_by_default: true
+  - platform: open_meteo
+    weather_description:
+      id: weather_text
+      on_value:
+        - script.execute: build_weather_message
+    wind_direction_short:
+      id: weather_wind_direction
+  - platform: template
+    id: weather_combined
+    on_value:
+      lambda: |-
+        if (!id(weather_text).state.empty()) {
+          id(weather_shown).publish_state(x);
+        } else {
+          id(weather_shown).publish_state("Open-Meteo API Offline");
+        }
+  - platform: template
+    name: "Weather"
+    id: weather_shown
+    icon: mdi:weather-cloudy
+    entity_category: diagnostic
 
 sensor:
   - platform: wifi_signal
@@ -361,6 +455,14 @@ sensor:
     entity_category: "diagnostic"
     icon: mdi:wifi
     disabled_by_default: true
+  - platform: open_meteo
+    id: weather
+    temperature_c:
+      id: weather_temperature_c
+    temperature_f:
+      id: weather_temperature_f
+    update_timestamp:
+      id: weather_update_timestamp
 
 output:
   - platform: esp8266_pwm # ESP32 use platform: ledc
@@ -462,7 +564,7 @@ binary_sensor:
               - script.execute: display_off_deactivate
             else:
               - number.decrement: brightness
-      #Hold DOWN will select enable or disable time zone offset
+      #Hold DOWN will toggle Alternate Time (or turn screen on again)
       - timing:
           - ON for at least 1s
         then:
@@ -472,7 +574,7 @@ binary_sensor:
             then:
               - script.execute: display_off_deactivate
             else:
-              - switch.toggle: tzoffset_on
+              - switch.toggle: tz_alt
   - platform: gpio
     pin: 
       number: ${set_button_pin}
@@ -535,17 +637,13 @@ display:
             }
           }
         } else {
+          // The extra indent here makes comparing the core clock to the HA version easier
             if ((id(message_alive_time) != 0) && (id(message_clock_time) != 0)) {
               id(message_clock_time_count) += 1;
               id(message_alive_time_count) += 1;
             }
             static int blinking = false;
-            // apply offset if needed https://community.home-assistant.io/t/multiple-time-zones/435315/12
-            int offset = 0;
-            if (id(tzoffset_on).state != false) {
-              offset = (int)(60*60*(id(tzoffset).state));
-            }
-            std::time_t tz1time = (id(my_time).now().timestamp + offset);
+            std::time_t tz1time = (id(my_time).now().timestamp);
             std::tm *tz1time_astm = localtime(&tz1time);
             // check if the date should be displayed
             if ((id(time_display_count) >= (id(time_display_time).state)) && (id(date_display_mode).state != false)) {
@@ -580,6 +678,20 @@ display:
               }
               if (id(date_display_count) >= id(date_display_time).state) {
                 id(time_display_count) = 0;
+                // show the weather (if it's available)
+                if (!id(weather_combined).state.empty()) {
+                  id(weather_interval_count) += 1;
+                  ESP_LOGI("info", "Weather interval count: %d / %d", id(weather_interval_count), (int)id(weather_interval).state);
+                  if (id(weather_interval_count) >= id(weather_interval).state) {
+                    id(weather_interval_count) = 0;
+                    // shortcut: use the 'message' which suspends other counting...
+                    ESP_LOGI("info", "Showing Weather: %s", id(weather_combined).state.c_str());
+                    id(message) = id(weather_combined).state.c_str();
+                    id(message_alive_time) = id(weather_display_time).state;
+                    id(message_display_time) = id(weather_display_time).state;
+                    id(message_clock_time) = 0;
+                  }
+                }
               }
             } else {
               // display time
@@ -806,8 +918,35 @@ globals:
     type: uint16_t
     restore_value: false
     initial_value: '0'
+# Weather Variable
+  - id: weather_interval_count
+    type: uint8_t
+    restore_value: false
+    initial_value: '0'
 
 text:
+  - platform: template
+    name: "Main Time Zone POSIX"
+    id: main_timezone
+    optimistic: true
+    min_length: 0
+    max_length: 35
+    mode: text
+    restore_value: true
+    initial_value: "${time_zone}"
+    on_value:
+      then:
+        - delay: 250ms
+        - lambda: |-
+            if (id(main_timezone).state == "") {
+              id(reset_main_timezone_text).press();
+            } else {
+              id(tz_alt).turn_off();
+            }
+        - script.execute: set_timezone
+    entity_category: config
+    icon: mdi:clock
+    disabled_by_default: true
   - platform: template
     name: "Alt Time Zone POSIX"
     id: alt_timezone
@@ -822,15 +961,12 @@ text:
         - delay: 250ms
         - lambda: |-
             if (id(alt_timezone).state == "") {
-              id(alt_timezone).state = "${time_zone}";
+              id(reset_alt_timezone_text).press();
             }
             if (id(alt_timezone).state == "${time_zone}") {
-              id(alt_time_zone_on).turn_off();
+              id(tz_alt).turn_off();
             } else {
-              if (id(tzoffset_on).state) {
-                id(tzoffset_on).turn_off();
-              }
-              id(alt_time_zone_on).turn_on();
+              id(tz_alt).turn_on();
             }
         - script.execute: set_timezone
     entity_category: config
@@ -898,13 +1034,24 @@ button:
                 id(message_alive_time) = 0;
                 id(message_display_time) = 0;
   - platform: template
-    id: reset_timezone_text
-    name: "Alt Time Zone Reset to ${time_zone}"
+    id: reset_main_timezone_text
+    name: "Main Time Zone Reset to ${time_zone}"
+    on_press:
+      then:
+        - lambda: |-
+            auto call = id(main_timezone).make_call();
+            call.set_value("${time_zone}");
+            call.perform();
+    entity_category: config
+    icon: mdi:clock-alert
+  - platform: template
+    id: reset_alt_timezone_text
+    name: "Alt Time Zone Reset to ${alt_time_zone}"
     on_press:
       then:
         - lambda: |-
             auto call = id(alt_timezone).make_call();
-            call.set_value("${time_zone}");
+            call.set_value("${alt_time_zone}");
             call.perform();
     entity_category: config
     icon: mdi:clock-alert
@@ -967,19 +1114,6 @@ switch:
     entity_category: config
     icon: mdi:calendar-month
   - platform: template
-    name: "Time Zone Offset On"
-    id: tzoffset_on
-    restore_mode: RESTORE_DEFAULT_OFF
-    optimistic: true
-    turn_on_action:
-        - lambda: |-
-            ESP_LOGI("info", "Time Zone Offset On");
-    turn_off_action:
-        - lambda: |-
-            ESP_LOGI("info", "Time Zone Offset Off");
-    entity_category: config
-    icon: mdi:airplane-clock
-  - platform: template
     name: "Date Display Mode"
     id: date_display_mode
     restore_mode: RESTORE_DEFAULT_OFF
@@ -1025,7 +1159,7 @@ switch:
     icon: mdi:wifi-off
   - platform: template
     name: "Alt Time Zone On"
-    id: alt_time_zone_on
+    id: tz_alt
     restore_mode: RESTORE_DEFAULT_OFF
     optimistic: true
     turn_on_action:
@@ -1036,6 +1170,39 @@ switch:
             ESP_LOGI("info", "Alt Time Zone Off");
     entity_category: config
     icon: mdi:airplane-clock
+# Weather Toggle Switches (the numbers)
+  - platform: template
+    name: "Weather Temperature °C"
+    id: weather_2_temperature_c
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
+    turn_on_action:
+        - lambda: |-
+            ESP_LOGI("info", "Weather Temperature °C On");
+            if (id(weather_2_temperature_f).state) id(weather_2_temperature_f).turn_off();
+        - script.execute: build_weather_message
+    turn_off_action:
+        - lambda: |-
+            if (!id(weather_2_temperature_f).state) ESP_LOGI("info", "Weather Temperature °C Off");
+        - script.execute: build_weather_message
+    entity_category: config
+    icon: mdi:temperature-celsius
+  - platform: template
+    name: "Weather Temperature °F"
+    id: weather_2_temperature_f
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    turn_on_action:
+        - lambda: |-
+            ESP_LOGI("info", "Weather Temperature °F On");
+            if (id(weather_2_temperature_c).state) id(weather_2_temperature_c).turn_off();
+        - script.execute: build_weather_message
+    turn_off_action:
+        - lambda: |-
+            if (!id(weather_2_temperature_c).state) ESP_LOGI("info", "Weather Temperature °F Off");
+        - script.execute: build_weather_message
+    entity_category: config
+    icon: mdi:temperature-fahrenheit
 
 # Alarms On/Off Selector: in theory, you could edit this and duplicate it to turn individual alarms on and off (you'd have to edit the on_time section and add global variables)
 # Sinilink XY-Clock: Keep next 21 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
@@ -1063,9 +1230,7 @@ switch:
   - platform: template
     name: "ehDP Discovery"
     id: ehdp_discovery
-    restore_mode: RESTORE_DEFAULT_ON
     optimistic: true
-    lambda: return id(my_ehdp).is_enabled();
     turn_on_action:
       - lambda: id(my_ehdp).enable();
     turn_off_action:
@@ -1144,23 +1309,6 @@ number:
     entity_category: config
     icon: mdi:calendar-start
   - platform: template
-    name: "Time Zone Offset"
-    id: tzoffset
-    restore_value: true
-    optimistic: true
-    step: 0.25
-    min_value: -26
-    max_value: 26
-    initial_value: 0
-    mode: box
-    unit_of_measurement: hours
-    set_action:
-      then:
-        - lambda: |-
-            ESP_LOGI("info", "Time Zone Offset: %.2f hours", x);
-    entity_category: config
-    icon: mdi:clock-plus
-  - platform: template
     name: "Time Sync Interval"
     id: sync_time
     restore_value: true
@@ -1213,14 +1361,14 @@ number:
     entity_category: config
     icon: mdi:lightbulb-off
   - platform: template
-    name: "Display Off When No Wifi Time (seconds) (0 Disable)"
+    name: "Display Off When No Wifi Time (0 Disable)"
     id: display_off_no_wifi_time
     restore_value: true
     optimistic: true
     step: 5
     min_value: 0
     max_value: 180
-    initial_value: 60
+    initial_value: 0
     mode: box
     unit_of_measurement: seconds
     set_action:
@@ -1230,6 +1378,96 @@ number:
         - script.execute: display_off_deactivate
     entity_category: config
     icon: mdi:lightbulb-off
+  - platform: template
+    name: "Weather Latitude"
+    id: latitude
+    restore_value: true
+    optimistic: true
+    step: 0.0001
+    min_value: -90
+    max_value: 90
+    initial_value: 43.9500
+    mode: box
+    unit_of_measurement: °
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGI("info", "Latitude: %.4f°", x);
+            id(weather).set_latitude([x](){ return x; });
+        - script.execute: force_weather_update
+    entity_category: config
+    icon: mdi:latitude
+  - platform: template
+    name: "Weather Longitude"
+    id: longitude
+    restore_value: true
+    optimistic: true
+    step: 0.0001
+    min_value: -180
+    max_value: 180
+    initial_value: 59.9100
+    mode: box
+    unit_of_measurement: °
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGI("info", "Longitude: %.4f°", x);
+            id(weather).set_longitude([x](){ return x; });
+        - script.execute: force_weather_update
+    entity_category: config
+    icon: mdi:longitude
+  - platform: template
+    name: "Weather Update Interval"
+    id: weather_update_interval
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 10
+    max_value: 60
+    initial_value: 10
+    mode: box
+    unit_of_measurement: minutes
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("info", "Weather Update Interval: %.0f minutes", x);
+            id(weather).set_update_interval(x * 60000);
+    entity_category: config
+    icon: mdi:radar
+  - platform: template
+    name: "Weather Display Time"
+    id: weather_display_time
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 60
+    initial_value: 1
+    mode: box
+    unit_of_measurement: seconds
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("info", "Weather Display Time: %.0f seconds", x);
+    entity_category: config
+    icon: mdi:weather-cloudy-clock
+  - platform: template
+    name: "Weather Intervals"
+    id: weather_interval
+    restore_value: true
+    optimistic: true
+    step: 1
+    min_value: 1
+    max_value: 10
+    initial_value: 1
+    mode: box
+    unit_of_measurement: intervals
+    set_action:
+      then:
+        - lambda: |-
+            ESP_LOGI("info", "Weather Intervals: %.0f", x);
+    entity_category: config
+    icon: mdi:weather-cloudy-clock
 
 # Sinilink XY-Clock: Keep next 52 lines (delete for others) / Only for Sinilink Clock or another that has a piezo speaker
 # Alarms UI Selectors (each alarm requires tune/hour/min selectors)
