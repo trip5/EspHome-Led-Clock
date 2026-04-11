@@ -311,7 +311,7 @@ It's always best to fully erase and re-flash when upgrading the version of the f
 
 | Date       | Release Notes    |
 | ---------- | ---------------- |
-| 2026.04.11 | Non-HA versions: ehDP component updated, Weather component updated and fixed |
+| 2026.04.11 | Non-HA versions: ehDP component updated, Weather component updated and fixed (retries) |
 | 2026.04.08 | Non-HA versions: ehDP fixed, both time zones changeable in UI, Weather Temperature options added, Time Zone Offset completely removed (which affects all files) |
 | 2026.03.24 | Added ehDP to non-HA versions. Get [eh Device Scanner](https://github.com/trip5/eh-Device-Scanner) to use it. |
 | 2026.01.25 | Re-introduced variant YAML files with `yaml-derive.py`, minor fixes, Github page added with mkdocs and web flashing tool |
