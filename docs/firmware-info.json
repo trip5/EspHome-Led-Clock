@@ -1,7 +1,7 @@
 {
   "project": "EspHome-Led-Clock",
-  "version": "2026.04.08",
-  "build_date": "2026-04-08 04:16:16 UTC",
+  "version": "2026.04.11",
+  "build_date": "2026-04-11 08:01:08 UTC",
   "variants": [
   {
     "name": "303 Clock - HA",
