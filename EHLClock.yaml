@@ -12,7 +12,7 @@ substitutions:
 #  friendly_name: "LED-Clock-303"
   comment: "EHLClock from Trip5"
   project_name: "Trip5.EspHomeLedClock"
-  project_version: "2026.04.08"
+  project_version: "2026.04.11"
   waiting: "EHLC" # shows when waiting for time
 
   # Time zone must be POSIX format: (ie "KST-9" & "PST8PDT,M3.2.0/2:00:00,M11.1.0/2:00:00" & "AST4ADT,M3.2.0,M11.1.0")
@@ -231,7 +231,7 @@ script:
       - ds1307.write_time:
 # 303 Clock: Uncomment next 1 line / 303 Clock uses a DS1302 RTC
 #      - ds1302.write_time:
-# If no RTC is being used, delete above write_time lines and delete 4 lines in the below script - they start with id(rtc_time)
+# If no RTC is being used, delete above write_time lines and delete 3 lines in the below script - they start with id(rtc_time)
   - id: set_timezone
     mode: restart
     then:
@@ -381,7 +381,7 @@ ota:
         - lambda: |-
             id(display_off_time_count) = 0;
             id(display_off) = false;
-            id(message) = "=" + std::to_string((int)x) + "=";
+            id(message) = "-" + std::to_string((int)x) + "-";
             if (x > 9) { id(tm_display)->update(); }
         - logger.log:
             format: "OTA progress %0.1f%%"
@@ -623,6 +623,7 @@ display:
       // Display the message if all conditions are met
       if (id(my_time).now().is_valid() && !id(display_off)) {
         if ((id(message_alive_time) != 0) && (id(message_clock_time_count) >= id(message_clock_time))) {
+          ESP_LOGI("info", "Showing Message");
           id(message_display_time_count) += 1;
           id(message_alive_time_count) += 1;
           auto message_text = id(message);
@@ -678,20 +679,6 @@ display:
               }
               if (id(date_display_count) >= id(date_display_time).state) {
                 id(time_display_count) = 0;
-                // show the weather (if it's available)
-                if (!id(weather_combined).state.empty()) {
-                  id(weather_interval_count) += 1;
-                  ESP_LOGI("info", "Weather interval count: %d / %d", id(weather_interval_count), (int)id(weather_interval).state);
-                  if (id(weather_interval_count) >= id(weather_interval).state) {
-                    id(weather_interval_count) = 0;
-                    // shortcut: use the 'message' which suspends other counting...
-                    ESP_LOGI("info", "Showing Weather: %s", id(weather_combined).state.c_str());
-                    id(message) = id(weather_combined).state.c_str();
-                    id(message_alive_time) = id(weather_display_time).state;
-                    id(message_display_time) = id(weather_display_time).state;
-                    id(message_clock_time) = 0;
-                  }
-                }
               }
             } else {
               // display time
@@ -766,7 +753,18 @@ display:
               it.print(1, hour_b.c_str());
               it.print(2, min_a.c_str());
               it.print(3, min_b.c_str());
-          }
+            }
+            if (((id(date_display_count) >= id(date_display_time).state) && (id(date_display_mode).state != false)) || ((id(time_display_count) >= id(time_display_time).state) && (id(date_display_mode).state == false))) {
+              id(time_display_count) = 0;
+              // show the weather (if it's available)
+              if (!id(weather_combined).state.empty()) {
+                // shortcut: use the 'message' which suspends other counting...
+                id(message) = id(weather_combined).state.c_str();
+                id(message_alive_time) = id(weather_display_time).state;
+                id(message_display_time) = id(weather_display_time).state;
+                id(message_clock_time) = 0;
+              }
+            }
         }
       } else {
         if (!id(display_off)) {
@@ -916,11 +914,6 @@ globals:
     initial_value: 'false'
   - id: display_off_time_count
     type: uint16_t
-    restore_value: false
-    initial_value: '0'
-# Weather Variable
-  - id: weather_interval_count
-    type: uint8_t
     restore_value: false
     initial_value: '0'
 
@@ -1405,7 +1398,7 @@ number:
     step: 0.0001
     min_value: -180
     max_value: 180
-    initial_value: 59.9100
+    initial_value: -59.9100
     mode: box
     unit_of_measurement: °
     set_action:
