@@ -49,7 +49,7 @@ jobs:
           # Replace only the first occurrence of 'easier to read' with 'easier to explore'
           sed -i '0,/easier to read/s|easier to read|easier to explore|' docs/index.md
 
-       - name: Convert relative repo links to GitHub URLs
+      - name: Convert relative repo links to GitHub URLs
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
